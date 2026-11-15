@@ -6,15 +6,25 @@ Hệ thống giám sát **CPU, RAM, Network, Disk** cho hàng nghìn máy ảo t
 - **Web khách hàng** (cổng riêng, đặt ra internet): khách xem máy chủ của mình, biểu đồ, cảnh báo, báo cáo tháng.
 - **Agent Docker** đặt tại từng site: đọc số liệu từ vCenter của site và gửi về web admin — không cài gì vào VM.
 
-```
- Site A: vCenter ◀── agent-docker ──┐
- Site B: vCenter ◀── agent-docker ──┼──HTTPS + API key──▶  web-admin (nội bộ, :3000) ──▶ Prometheus / Grafana · InfluxDB
- Site C: vCenter ◀── agent-docker ──┘                          ▲                      ──▶ Telegram / Email / Webhook
-                                                               │ chỉ API khách
-                                      Khách (internet) ──▶ web-khach (:8080)
-```
+<p align="center"><img src="docs/architecture.svg" alt="Kiến trúc tổng thể" width="900"></p>
 
 > Dữ liệu trong repo (IP, site, khách hàng) là **dữ liệu mẫu**. Chế độ demo sinh số liệu giả để chạy thử không cần vCenter.
+
+## Sơ đồ hoạt động
+
+### Luồng số liệu
+
+Mỗi 20 giây agent đọc bộ đếm hiệu năng của vCenter, gom theo lô và gửi về web-admin. Web-admin lưu lịch sử, xét cảnh báo, cộng dồn báo cáo tháng, rồi đẩy ra dashboard realtime, kênh thông báo, Prometheus / Grafana và InfluxDB.
+
+<p align="center"><img src="docs/data-flow.svg" alt="Luồng số liệu" width="900"></p>
+
+### Yêu cầu của khách hàng
+
+Cổng khách chỉ chuyển tiếp các API dành cho khách, chỉ cho tài khoản khách đăng nhập, dùng cookie riêng; web-admin lọc dữ liệu theo khách được gán và ẩn thông tin hạ tầng nội bộ.
+
+<p align="center"><img src="docs/customer-flow.svg" alt="Yêu cầu của khách hàng" width="900"></p>
+
+> Sơ đồ là file SVG trong `docs/`, sinh bằng `python docs/make_diagrams.py` (tự đổi màu theo giao diện sáng / tối).
 
 ## Cấu trúc
 
