@@ -59,68 +59,234 @@ Dừng: `docker compose -f docker-compose.demo.yml down`. Chạy lại từ đ�
 
 ## 2. Triển khai thật
 
-### Bước 1 — Web admin + web khách chạy **service** trên một server (không dùng Docker)
+### Link tải (bản mới nhất)
 
-Tải `vm-monitor-linux.zip` ở trang [Releases](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest) (hoặc tự build: `bash deploy/build.sh` rồi dùng thư mục `deploy/linux/`).
+| Gói | Dùng cho | Link tải |
+|---|---|---|
+| `vm-monitor-linux.zip` | Server trung tâm Linux: web-admin + web-khach chạy **service systemd** | [Tải về](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-linux.zip) |
+| `vm-monitor-windows.zip` | Server trung tâm Windows Server: web-admin + web-khach chạy **nền** | [Tải về](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-windows.zip) |
+| `vm-monitor-agent-docker.zip` | **Agent tại mỗi site** (Docker) | [Tải về](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-agent-docker.zip) |
 
-**Linux (systemd)** — Ubuntu 22.04+ / Debian 12 / RHEL 9:
+Tất cả phiên bản: [trang Releases](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases).
+
+### Bước 1 — Web admin + web khách chạy **service** trên server trung tâm (không dùng Docker)
+
+#### Cách A — Linux (systemd): Ubuntu 22.04+ / Debian 12 / RHEL 9
+
+**1. Cài Java 21 và công cụ giải nén**
+
+Ubuntu / Debian:
 
 ```bash
-sudo apt install -y openjdk-21-jre-headless unzip      # RHEL: sudo dnf install -y java-21-openjdk-headless unzip
-unzip vm-monitor-linux.zip && cd vm-monitor-linux
+sudo apt update
+```
+
+```bash
+sudo apt install -y openjdk-21-jre-headless unzip wget
+```
+
+RHEL / Rocky / Alma:
+
+```bash
+sudo dnf install -y java-21-openjdk-headless unzip wget
+```
+
+Kiểm tra (phải ra `21` trở lên):
+
+```bash
+java -version
+```
+
+**2. Tải gói cài đặt**
+
+```bash
+cd /tmp
+```
+
+```bash
+wget https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-linux.zip
+```
+
+**3. Giải nén**
+
+```bash
+unzip -o vm-monitor-linux.zip
+```
+
+```bash
+cd vm-monitor-linux
+```
+
+**4. Cài service**
+
+```bash
 sudo bash install.sh
 ```
 
-- Tạo 2 service `vm-monitor-admin` (cổng 3000) và `vm-monitor-khach` (cổng 8080), tự chạy khi khởi động máy, tự chạy lại khi lỗi.
-- Jar: `/opt/vm-monitor/` · dữ liệu: `/var/lib/vm-monitor/` (`config.json`, `data/`, `backups/`) · cấu hình: `/etc/vm-monitor/admin.env`, `/etc/vm-monitor/khach.env`.
-- Quản lý: `systemctl status|restart vm-monitor-admin vm-monitor-khach`, log: `journalctl -u vm-monitor-admin -f`.
-- Nâng cấp: giải nén bản mới, chạy lại `sudo bash install.sh` (giữ dữ liệu). Gỡ: `sudo bash uninstall.sh`.
+Script sẽ: tạo user `vmmonitor`, chép jar vào `/opt/vm-monitor/`, tạo thư mục dữ liệu `/var/lib/vm-monitor/`, tạo file cấu hình `/etc/vm-monitor/admin.env` và `/etc/vm-monitor/khach.env`, cài 2 service `vm-monitor-admin` (cổng 3000) và `vm-monitor-khach` (cổng 8080), bật tự chạy khi khởi động máy và tự chạy lại khi lỗi.
 
-**Windows Server** — cài [Java 21 (Temurin)](https://adoptium.net), PowerShell *Run as Administrator*:
+**5. Kiểm tra service đang chạy**
 
-```powershell
-powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -JarDir <thư mục chứa 2 file jar>
+```bash
+sudo systemctl status vm-monitor-admin vm-monitor-khach
 ```
 
-Tạo 2 tác vụ nền chạy bằng SYSTEM lúc khởi động (`VM Monitor - Web admin`, `VM Monitor - Web khach`), dữ liệu ở `C:\VMMonitor`. Gỡ: `deploy\windows\uninstall.ps1`.
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/login.html
+```
 
-Sau khi cài:
+```bash
+curl -s http://localhost:8080/healthz
+```
 
-- Web admin: `http://<server>:3000` → tạo tài khoản admin. Nên để cổng 3000 **chỉ trong mạng nội bộ / VPN** (agent các site gọi vào cổng này).
-- Web khách: `http://<server>:8080` — đặt sau reverse proxy có HTTPS (nginx / Caddy) rồi mới mở ra internet, đặt `TRUST_PROXY=1` trong `khach.env`.
-- Đổi tên cổng khách: `BRAND_NAME` trong `khach.env`, rồi restart `vm-monitor-khach`.
+Ra `200` và `{"ok":true,"admin":"ok"}` là được.
+
+**6. Mở tường lửa (nếu đang bật)**
+
+Ubuntu (ufw):
+
+```bash
+sudo ufw allow 3000/tcp
+```
+
+```bash
+sudo ufw allow 8080/tcp
+```
+
+RHEL (firewalld):
+
+```bash
+sudo firewall-cmd --permanent --add-port=3000/tcp --add-port=8080/tcp
+```
+
+```bash
+sudo firewall-cmd --reload
+```
+
+**7. Mở web và tạo tài khoản admin**
+
+- Web admin: `http://<ip-server>:3000` → lần đầu vào sẽ có form tạo tài khoản **admin**.
+- Web khách: `http://<ip-server>:8080` (chỉ tài khoản vai trò *Khách hàng* đăng nhập được).
+
+**Quản lý hằng ngày**
+
+| Việc | Lệnh |
+|---|---|
+| Khởi động lại | `sudo systemctl restart vm-monitor-admin vm-monitor-khach` |
+| Dừng | `sudo systemctl stop vm-monitor-khach vm-monitor-admin` |
+| Xem log service | `sudo journalctl -u vm-monitor-admin -f` |
+| Xem log ứng dụng | `sudo tail -f /var/lib/vm-monitor/data/portal.log` |
+| Đổi tên / cổng web khách | sửa `/etc/vm-monitor/khach.env` rồi `sudo systemctl restart vm-monitor-khach` |
+| Nâng cấp | tải zip bản mới, làm lại bước 2 → 4 (dữ liệu giữ nguyên) |
+| Gỡ cài đặt | `sudo bash uninstall.sh` (giữ dữ liệu trong `/var/lib/vm-monitor`) |
+
+#### Cách B — Windows Server
+
+**1.** Cài Java 21: tải bản *JRE 21 — Windows x64 .msi* ở [adoptium.net](https://adoptium.net/temurin/releases/?version=21), khi cài chọn **Set JAVA_HOME** và **Add to PATH**.
+
+**2.** Tải [`vm-monitor-windows.zip`](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-windows.zip), chuột phải → *Extract All…* (ví dụ ra `C:\Setup\vm-monitor-windows`).
+
+**3.** Mở **PowerShell bằng quyền Administrator**, chạy:
+
+```powershell
+cd C:\Setup\vm-monitor-windows
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Script tạo 2 tác vụ nền chạy bằng SYSTEM lúc khởi động máy (`VM Monitor - Web admin`, `VM Monitor - Web khach`), tự chạy lại khi lỗi, mở tường lửa cổng 3000 / 8080. Dữ liệu ở `C:\VMMonitor`, cấu hình web khách ở `C:\VMMonitor\khach.env`.
+
+**4.** Mở `http://localhost:3000` → tạo tài khoản admin. Gỡ: `powershell -ExecutionPolicy Bypass -File .\uninstall.ps1`.
+
+#### Sau khi cài (cả hai cách)
+
+- Để cổng **3000 chỉ trong mạng nội bộ / VPN** — agent các site gọi vào cổng này.
+- Web khách (8080) đặt sau reverse proxy có HTTPS (nginx / Caddy) rồi mới mở ra internet, đặt `TRUST_PROXY=1` trong `khach.env`.
 - HTTPS cho web admin: `tools/make_cert.ps1` hoặc chứng chỉ thật → *Cài đặt → Người dùng & bảo mật → Bảo mật*.
+- Tự build thay vì tải: `bash deploy/build.sh` (ra 2 file jar ở `deploy/dist/`), rồi chạy `sudo bash deploy/linux/install.sh deploy/dist`.
 
-> Muốn chạy web-admin + web-khach bằng Docker thay vì service: `cd deploy && mkdir portal-data && docker compose up -d --build` (tuỳ chọn).
+> Muốn chạy web-admin + web-khach bằng Docker thay vì service (tuỳ chọn): `cd deploy && mkdir portal-data && docker compose up -d --build`.
 
-### Bước 2 — Agent tại mỗi site
+### Bước 2 — Agent tại mỗi site (Docker)
 
-1. Web admin → *Cài đặt → vCenter → ＋ Thêm collector cho site ở xa* → đặt tên (vd `site-hn`) → copy **API key**.
-2. Trên một máy có Docker trong mạng của site (thấy được vCenter, gọi ra được web admin):
-   ```bash
-   cd agent-docker
-   cp .env.example .env        # MONITOR_SERVER=http://<web-admin>:3000, MONITOR_TOKEN=<API key>
-   docker compose up -d --build
-   docker compose logs -f       # thấy "Portal nhận diện collector này là 'site-hn'" là xong
-   ```
-   Máy không có internet: chạy `agent-docker/build-image.ps1` ở máy khác, mang `vm-monitor-agent.tar` sang rồi `docker load -i vm-monitor-agent.tar`.
-3. Web admin → *Cài đặt → vCenter → Thêm vCenter*: địa chỉ, tài khoản, mật khẩu, **Chạy bởi collector** = `site-hn` → Lưu. Agent áp dụng trong ~30 giây; trạng thái hiện ngay trên trang.
+**1. Tạo API key cho agent** — Web admin → *Cài đặt → vCenter → ＋ Thêm collector cho site ở xa* → đặt tên (vd `site-hn`) → copy **API key** (chỉ hiện một lần).
 
-#### Hoặc: chạy collector ngoài Docker (cùng máy với web-admin, hoặc máy Windows / Linux sẵn có)
+**2. Chuẩn bị máy ở site** — một máy Linux có Docker, thấy được vCenter của site và gọi ra được web admin (cổng 3000). Chưa có Docker:
 
-Không muốn dùng Docker ở site? Chạy thẳng collector Python, gửi vào web-admin bằng API key — cách đang dùng khi web-admin + web-khach chạy Docker còn collector chạy trên Windows:
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+```
+
+**3. Tải và giải nén agent**
+
+```bash
+cd /opt
+```
+
+```bash
+sudo wget https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest/download/vm-monitor-agent-docker.zip
+```
+
+```bash
+sudo unzip -o vm-monitor-agent-docker.zip
+```
+
+```bash
+cd vm-monitor-agent
+```
+
+**4. Khai báo địa chỉ web admin và API key**
+
+```bash
+sudo cp .env.example .env
+```
+
+```bash
+sudo nano .env
+```
+
+Sửa 2 dòng (giữ nguyên các dòng khác):
+
+```
+MONITOR_SERVER=http://<ip-web-admin>:3000
+MONITOR_TOKEN=<API key vừa copy>
+```
+
+Web admin dùng HTTPS chứng chỉ tự ký thì đặt thêm `MONITOR_INSECURE=1`.
+
+**5. Chạy agent**
+
+```bash
+sudo docker compose up -d --build
+```
+
+**6. Xem log**
+
+```bash
+sudo docker compose logs -f
+```
+
+Thấy dòng *"Portal nhận diện collector này là 'site-hn'"* là đã kết nối. Bấm `Ctrl+C` để thoát xem log (agent vẫn chạy).
+
+**7. Gán vCenter cho agent** — Web admin → *Cài đặt → vCenter → Thêm vCenter*: địa chỉ, tài khoản (Read-only), mật khẩu, **Chạy bởi collector** = `site-hn` → Lưu. Agent nhận cấu hình trong ~30 giây, số liệu VM hiện trên dashboard sau 1–2 phút.
+
+Máy site không có internet: ở máy có internet chạy `agent-docker/build-image.ps1` (ra `vm-monitor-agent.tar`), chép sang rồi `sudo docker load -i vm-monitor-agent.tar` trước bước 5.
+
+Quản lý agent: `sudo docker compose restart` · `sudo docker compose down` · nâng cấp: tải zip mới, giải nén đè, `sudo docker compose up -d --build`.
+
+#### Hoặc: chạy collector không dùng Docker
 
 ```bash
 cd agent-docker/collector
 pip install -r ../requirements.txt
-# Windows PowerShell:  $env:MONITOR_SERVER="http://localhost:3000"; $env:MONITOR_TOKEN="<API key collector>"
-MONITOR_SERVER=http://localhost:3000 MONITOR_TOKEN=<API key collector> python vcenter_collector.py
+MONITOR_SERVER=http://<ip-web-admin>:3000 MONITOR_TOKEN=<API key collector> python vcenter_collector.py
 ```
 
-- API key vai trò **collector** tạo như Bước 2.1; tên collector = tên key. Trong *Cài đặt → vCenter* chọn **Chạy bởi collector** = tên key cho các vCenter collector này phụ trách.
-- Collector cùng máy với web-admin chạy trong Docker vẫn **cần API key**: container không coi kết nối từ máy chủ là "cùng máy".
-- Có thể ghi key vào file `config.json` cạnh collector thay cho biến môi trường: `{"collector": {"portal": "http://localhost:3000", "token": "<API key>"}}`.
-- Chạy nền: Windows dùng Task Scheduler (khởi động khi đăng nhập + lặp lại 5 phút), Linux dùng systemd.
+- Windows PowerShell: `$env:MONITOR_SERVER="http://<ip-web-admin>:3000"; $env:MONITOR_TOKEN="<API key>"; python vcenter_collector.py`.
+- Có thể ghi vào `config.json` cạnh collector thay cho biến môi trường: `{"collector": {"portal": "http://<ip-web-admin>:3000", "token": "<API key>"}}`.
+- Chạy nền: Windows dùng Task Scheduler, Linux dùng systemd.
 
 ### Bước 3 — Cấu hình trên web (Cài đặt)
 
