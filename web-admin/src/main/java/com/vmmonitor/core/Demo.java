@@ -60,9 +60,11 @@ public class Demo {
   static double walk(double v, double lo, double hi, double step, Random r) { return Math.max(lo, Math.min(hi, v + (r.nextDouble() - 0.5) * step)); }
   static double r1(double v) { return Math.round(v * 10) / 10.0; }
 
+  private boolean seen = false;
+
   void tick() {
     for (FakeVm v : vms) {
-      if (v.flaky && (System.currentTimeMillis() / 120000) % 2 == 1) continue; // thỉnh thoảng mất kết nối
+      if (v.flaky && seen && (System.currentTimeMillis() / 120000) % 2 == 1) continue; // thỉnh thoảng mất kết nối (sau lần gửi đầu)
       v.t += 0.15;
       v.cpu = walk(v.cpu + (v.base - v.cpu) * 0.05, 1, 99, 14, rnd);
       v.mem = walk(v.mem, 10, 97, 3, rnd);
@@ -99,8 +101,11 @@ public class Demo {
         dss.addObject().put("site", s.name()).put("name", "DS-" + s.name() + "-" + String.format("%02d", d)).put("datacenter", "DC-" + s.name()).put("vcenter", "vcenter." + s.name().toLowerCase() + ".local")
             .put("type", d == 1 ? "vsan" : "VMFS").put("accessible", true).put("capacity", cap).put("free", cap * (1 - pct / 100)).put("used", cap * pct / 100)
             .put("provisioned", cap * (pct / 100 + 0.3)).put("percent", pct).put("hosts", s.hosts()).put("vms", 30);
+        ArrayNode hn = ((ObjectNode) dss.get(dss.size() - 1)).putArray("hostNames");
+        for (int h = 1; h <= s.hosts(); h++) hn.add("esx" + String.format("%02d", h) + "." + s.name().toLowerCase() + ".local");
       }
     }
     p.infra.ingest(body);
+    seen = true;
   }
 }
