@@ -84,6 +84,22 @@ docker compose up -d --build
    Máy không có internet: chạy `agent-docker/build-image.ps1` ở máy khác, mang `vm-monitor-agent.tar` sang rồi `docker load -i vm-monitor-agent.tar`.
 3. Web admin → *Cài đặt → vCenter → Thêm vCenter*: địa chỉ, tài khoản, mật khẩu, **Chạy bởi collector** = `site-hn` → Lưu. Agent áp dụng trong ~30 giây; trạng thái hiện ngay trên trang.
 
+#### Hoặc: chạy collector ngoài Docker (cùng máy với web-admin, hoặc máy Windows / Linux sẵn có)
+
+Không muốn dùng Docker ở site? Chạy thẳng collector Python, gửi vào web-admin bằng API key — cách đang dùng khi web-admin + web-khach chạy Docker còn collector chạy trên Windows:
+
+```bash
+cd agent-docker/collector
+pip install -r ../requirements.txt
+# Windows PowerShell:  $env:MONITOR_SERVER="http://localhost:3000"; $env:MONITOR_TOKEN="<API key collector>"
+MONITOR_SERVER=http://localhost:3000 MONITOR_TOKEN=<API key collector> python vcenter_collector.py
+```
+
+- API key vai trò **collector** tạo như Bước 2.1; tên collector = tên key. Trong *Cài đặt → vCenter* chọn **Chạy bởi collector** = tên key cho các vCenter collector này phụ trách.
+- Collector cùng máy với web-admin chạy trong Docker vẫn **cần API key**: container không coi kết nối từ máy chủ là "cùng máy".
+- Có thể ghi key vào file `config.json` cạnh collector thay cho biến môi trường: `{"collector": {"portal": "http://localhost:3000", "token": "<API key>"}}`.
+- Chạy nền: Windows dùng Task Scheduler (khởi động khi đăng nhập + lặp lại 5 phút), Linux dùng systemd.
+
 ### Bước 3 — Cấu hình trên web (Cài đặt)
 
 | Tab | Việc cần làm |

@@ -68,3 +68,5 @@ Lệnh quản trị: `java -jar vm-monitor-admin.jar adduser admin` · `java -ja
 ## Đã kiểm tra
 
 Chạy song song với bản Node trên bản sao dữ liệu của một hệ thống thật (~1.600 VM, ~100 host, ~40 datastore): danh sách VM và mọi bộ lọc, khách hàng, site, tóm tắt, host, datastore, chi tiết + biểu đồ, báo cáo tháng, `/metrics`, cảnh báo, SSE, trang tĩnh, OpenAPI đều khớp; cookie đăng nhập do bản Node cấp dùng được trên bản Java; phạm vi khách hàng / phụ trách / nhân viên theo site đúng; nhận số liệu + cảnh báo chạy.
+
+Đang chạy thật (Docker, web-admin + web-khach) cho ~1.600 VM / ~100 host trên 2 vCenter, collector chạy ngoài Docker gửi vào bằng API key: số liệu, cảnh báo, ghi InfluxDB (định dạng Telegraf) và Prometheus / Grafana hoạt động bình thường.
