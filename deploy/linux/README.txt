@@ -29,7 +29,9 @@ Quản lý:
   sudo journalctl -u vm-monitor-admin -f
   tail -f /var/lib/vm-monitor/data/portal.log
 
-Nâng cấp: giải nén bản mới rồi chạy lại "sudo bash install.sh" (giữ nguyên dữ liệu).
+Cập nhật bản mới (đang chạy vẫn cập nhật được, giữ nguyên dữ liệu, lỗi thì tự quay lại bản cũ):
+  sudo /opt/vm-monitor/update.sh
+  sudo /opt/vm-monitor/update.sh --rollback      # quay lại bản trước
 Gỡ:       sudo bash uninstall.sh (giữ dữ liệu trong /var/lib/vm-monitor).
 
 Tường lửa (nếu bật):

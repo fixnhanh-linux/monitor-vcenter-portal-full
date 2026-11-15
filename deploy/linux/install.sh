@@ -45,6 +45,8 @@ install -d -o vmmonitor -g vmmonitor -m 750 /var/lib/vm-monitor /var/lib/vm-moni
 install -d -o root -g vmmonitor -m 750 /etc/vm-monitor
 install -m 644 "$ADMIN_JAR" /opt/vm-monitor/vm-monitor-admin.jar
 install -m 644 "$KHACH_JAR" /opt/vm-monitor/vm-monitor-khach.jar
+[ -f "$HERE/VERSION" ] && install -m 644 "$HERE/VERSION" /opt/vm-monitor/VERSION
+[ -f "$HERE/update.sh" ] && install -m 755 "$HERE/update.sh" /opt/vm-monitor/update.sh
 
 # ---- cổng: mặc định 3000 (admin) / 8080 (khách); đặt ADMIN_PORT=… KHACH_PORT=… để chọn; cổng bận thì tự lấy cổng trống kế tiếp
 systemctl stop vm-monitor-khach.service vm-monitor-admin.service 2>/dev/null || true
@@ -103,7 +105,8 @@ if [ "$ok" = 1 ]; then
   echo "  Kiểm tra  : $(curl -s http://127.0.0.1:$KPORT/healthz 2>/dev/null || echo "chưa trả lời - xem journalctl -u vm-monitor-khach")"
 else
   echo "Web admin CHƯA chạy được. Lỗi gần nhất:"
-  journalctl -u vm-monitor-admin -n 60 --no-pager 2>/dev/null | grep -Ev "^s*at |^s*..." | tail -15
+  journalctl -u vm-monitor-admin -n 60 --no-pager 2>/dev/null | grep -Ev '^[[:space:]]*at |^[[:space:]]*\.\.\.' | tail -15
+  exit 1
 fi
 echo "Log: journalctl -u vm-monitor-admin -f   ·   /var/lib/vm-monitor/data/portal.log"
-echo "Đổi cổng: ADMIN_PORT=3001 KHACH_PORT=8081 bash install.sh"
+echo "Đổi cổng: ADMIN_PORT=3001 KHACH_PORT=8081 bash install.sh   ·   Cập nhật bản mới: sudo /opt/vm-monitor/update.sh"

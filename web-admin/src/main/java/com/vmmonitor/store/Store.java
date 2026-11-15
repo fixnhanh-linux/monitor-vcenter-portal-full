@@ -216,22 +216,34 @@ public class Store {
 
   /** Chuỗi số liệu cho khoảng thời gian (giây): điểm thô + rollup cho phần trước đó; khoảng dài nén còn ~1000 điểm. */
   public synchronized ObjectNode series(Rec r, long rangeSec) {
-    long cutoff = System.currentTimeMillis() - rangeSec * 1000;
+    long now = System.currentTimeMillis();
+    return series(r, now - rangeSec * 1000, now);
+  }
+
+  /** Chuỗi số liệu trong khoảng [fromMs, toMs] (khoảng tuỳ chọn / phóng to biểu đồ). */
+  public synchronized ObjectNode series(Rec r, long fromMs, long toMs) {
+    long cutoff = fromMs;
+    long rangeSec = Math.max(1, (toMs - fromMs) / 1000);
     List<Point> raw = new ArrayList<>();
-    for (Point p : r.history) if (p.ts >= cutoff) raw.add(p);
+    for (Point p : r.history) if (p.ts >= cutoff && p.ts <= toMs) raw.add(p);
     long rawStart = raw.isEmpty() ? Long.MAX_VALUE : raw.get(0).ts;
-    boolean useRaw = rangeSec <= 3600;
+    // khoảng ngắn dùng điểm thô (20 giây); khoảng dài, hoặc phần cũ không còn điểm thô, dùng rollup
+    boolean useRaw = rangeSec <= 3600 * 3 && !raw.isEmpty();
     List<Point> rolled = new ArrayList<>();
     for (double[] a : r.rollup) {
-      if (a[0] >= cutoff && (!useRaw || a[0] + bucketMs <= rawStart)) rolled.add(new Point((long) a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]));
+      if (a[0] >= cutoff - bucketMs && a[0] <= toMs && (!useRaw || a[0] + bucketMs <= rawStart)) rolled.add(new Point((long) a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]));
     }
     ObjectNode out = Json.obj();
+    out.put("from", fromMs).put("to", toMs);
     ArrayNode pts = out.putArray("points");
     if (useRaw) {
       out.put("resolution", "raw");
       rolled.forEach((p) -> pts.add(p.toJson())); raw.forEach((p) -> pts.add(p.toJson()));
       return out;
     }
+    // nối thêm điểm thô mới hơn bucket rollup cuối (phần vài phút gần nhất chưa được gộp)
+    long tailFrom = rolled.isEmpty() ? fromMs : rolled.get(rolled.size() - 1).ts + bucketMs;
+    for (Point p : raw) if (p.ts >= tailFrom) rolled.add(p);
     int step = Math.max(1, (int) Math.ceil(rolled.size() / 1000.0));
     if (step == 1) { out.put("resolution", (bucketMs / 60000) + "m"); rolled.forEach((p) -> pts.add(p.toJson())); return out; }
     for (int i = 0; i < rolled.size(); i += step) {
@@ -251,5 +263,21 @@ public class Store {
     alertHistory.add(ev);
     while (alertHistory.size() > 500) alertHistory.remove(0);
     dirty = true;
+  }
+
+  /** Khoảng thời gian từ query: from/to (ms) nếu có, không thì range (giây, mặc định 1 giờ); giới hạn trong số ngày lưu. */
+  public static long[] window(String fromQ, String toQ, String rangeQ, double retentionDays) {
+    long now = System.currentTimeMillis(), oldest = now - (long) (retentionDays * 86400000L);
+    if (fromQ != null && !fromQ.isEmpty()) {
+      long from, to;
+      try { from = (long) Double.parseDouble(fromQ); to = toQ == null || toQ.isEmpty() ? now : (long) Double.parseDouble(toQ); }
+      catch (NumberFormatException e) { from = now - 3600000; to = now; }
+      to = Math.min(Math.max(to, oldest + 60000), now + 60000);
+      from = Math.max(Math.min(from, to - 60000), oldest);
+      return new long[] { from, to };
+    }
+    double rq = 0; try { rq = Double.parseDouble(rangeQ); } catch (Exception e) {}
+    long range = (long) Math.min(Math.max(60, rq > 0 ? rq : 3600), retentionDays * 86400);
+    return new long[] { now - range * 1000, now };
   }
 }

@@ -26,7 +26,7 @@ $env:TZ = 'Asia/Ho_Chi_Minh'
 while ($true) {
     if ((Test-Path $crash) -and (Get-Item $crash).Length -gt 5MB) { Move-Item -Force $crash "$crash.1" }
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] start $Part" | Out-File -Append -Encoding utf8 $crash
-    & $java @args *>> $crash
+    & $java @jargs *>> $crash
     "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $Part dừng (mã $LASTEXITCODE) - chạy lại sau 5 giây" | Out-File -Append -Encoding utf8 $crash
     Start-Sleep -Seconds 5
 }

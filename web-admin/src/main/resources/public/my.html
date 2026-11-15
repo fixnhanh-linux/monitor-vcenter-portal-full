@@ -96,6 +96,7 @@
 </aside>
 <div id="toast" class="toast"></div>
 
+<script src="timewin.js"></script>
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
@@ -187,7 +188,7 @@ function closeVm() { S.open = null; $('drawer').classList.remove('open'); $('sha
 async function loadDetail() {
   const id = S.open; if (!id) return;
   const path = id.split('/').map(encodeURIComponent).join('/');
-  const [d, m] = await Promise.all([api('vms/' + path), api(`vms/${path}/metrics?range=${$('d-range').value}`)]);
+  const [d, m] = await Promise.all([api('vms/' + path), api(`vms/${path}/metrics?${TW.query()}`)]);
   if (S.open !== id) return;
   const [cls, label] = STATUS[d.status] || ['off', d.status];
   const up = d.uptime ? `${Math.floor(d.uptime / 86400)} ngày ${Math.floor((d.uptime % 86400) / 3600)} giờ` : '—';
@@ -205,7 +206,8 @@ async function loadDetail() {
 }
 function chart(title, pts, series, opt) {
   const W = 700, H = 150, L = 46, B = 18, T = 6, R = 6;
-  const t1 = Date.now(), t0 = t1 - Number($('d-range').value) * 1000;
+  const [t0, t1] = TW.win();
+  pts = pts.filter((p) => p.ts >= t0 && p.ts <= t1);
   const max = opt.max || Math.max(1, ...pts.flatMap((p) => series.map(([k]) => p[k] || 0))) * 1.15;
   const X = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R), Y = (v) => T + (H - T - B) * (1 - Math.min(v, max) / max);
   let grid = '';
@@ -218,7 +220,7 @@ function chart(title, pts, series, opt) {
   const lines = pts.length < 2 ? `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="12" fill="var(--muted)">Đang thu thập dữ liệu…</text>`
     : series.map(([k, c]) => `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.ts).toFixed(1)},${Y(p[k] || 0).toFixed(1)}`).join('')}" fill="none" stroke="var(${c})" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
   const legend = series.length > 1 ? series.map(([, c, n]) => `<small><span style="color:var(${c})">●</span> ${n}</small>`).join(' ') : '';
-  return `<div class="chartbox"><h4>${title} <small>${esc(opt.now || '')}</small> ${legend}</h4><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${lines}</svg></div>`;
+  return `<div class="chartbox"><h4>${title} <small>${esc(opt.now || '')}</small> ${legend}</h4><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-tw="1" data-t0="${t0}" data-t1="${t1}" data-x0="${L / W}" data-x1="${(W - R) / W}" title="Kéo chuột để phóng to · nhấp đúp để thu nhỏ">${grid}${lines}</svg></div>`;
 }
 
 // ---------- sự kiện ----------
@@ -229,7 +231,7 @@ $('cust').onchange = (e) => { S.f.cust = e.target.value; render(); };
 $('grid').onclick = (e) => { const c = e.target.closest('.vm'); if (c) openVm(c.dataset.id).catch((err) => toast(err.message)); };
 $('a-list').onclick = (e) => { const li = e.target.closest('li'); if (li) openVm(li.dataset.id).catch((err) => toast(err.message)); };
 $('d-close').onclick = $('shade').onclick = closeVm;
-$('d-range').onchange = () => loadDetail().catch((err) => toast(err.message));
+TW.init($('d-range'), () => loadDetail().catch((err) => toast(err.message)));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeVm(); });
 $('csv').onclick = () => { location.href = 'api/v1/vms?format=csv' + (S.f.cust ? '&customer=' + encodeURIComponent(S.f.cust) : ''); };
 $('logout').onclick = async (e) => { e.preventDefault(); await fetch('api/v1/logout', { method: 'POST' }); location.href = 'khach-hang'; };

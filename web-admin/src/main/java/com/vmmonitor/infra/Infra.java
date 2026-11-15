@@ -153,8 +153,8 @@ public class Infra {
       if (h == null || !siteOk.apply(Json.str(h.info.path("site")))) { c.error(404, "Không tìm thấy host"); return true; }
       if (isMetrics) {
         double ret = Json.num(config.get().path("retentionDays")); if (ret <= 0) ret = 7;
-        long range = (long) Math.min(Math.max(60, Json.num(Json.F.textNode(c.q("range"))) > 0 ? Json.num(Json.F.textNode(c.q("range"))) : 3600), ret * 86400);
-        ObjectNode s = hosts.series(h, range); s.put("id", id);
+        long[] w = Store.window(c.q("from"), c.q("to"), c.q("range"), ret);
+        ObjectNode s = hosts.series(h, w[0], w[1]); s.put("id", id);
         c.json(200, s); return true;
       }
       ObjectNode view = hostView(h);

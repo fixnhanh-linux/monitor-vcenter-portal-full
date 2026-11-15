@@ -459,7 +459,7 @@ async function openDetail(id) {
 async function fetchDetail() {
   const id = state.selected; if (!id) return;
   try {
-    const [d, s] = await Promise.all([api('vms/' + vmPath(id)), api(`vms/${vmPath(id)}/metrics?range=${$('range').value}`)]);
+    const [d, s] = await Promise.all([api('vms/' + vmPath(id)), api(`vms/${vmPath(id)}/metrics?${TW.query()}`)]);
     if (state.selected !== id) return;
     state.detail = d; state.series = s; renderDetail();
   } catch (e) { if (e.status === 404) { toast('VM không còn trên portal'); closeDetail(); } }
@@ -477,7 +477,7 @@ async function refreshDetailExtras() {
 function onDetailUpdate(v) {
   Object.assign(state.detail, v);
   refreshDetailExtras();
-  if (state.series?.resolution === 'raw' && v.status !== 'off') {
+  if (state.series?.resolution === 'raw' && v.status !== 'off' && TW.live()) {
     state.series.points.push({ ts: v.lastSeen, cpu: v.cpu, mem: v.mem, disk: v.disk, rx: v.netRx, tx: v.netTx, rd: v.diskRead, wr: v.diskWrite });
   }
   renderDetail();
@@ -518,7 +518,7 @@ function renderDetail() {
   }
   $('d-api').textContent =`${location.origin}${location.pathname.replace(/[^/]*$/, '')}api/v1/vms/${vmPath(d.id)}`;
 
-  const pts = (state.series?.points || []).filter((p) => p.ts >= Date.now() - Number($('range').value) * 1000);
+  const [w0, w1] = TW.win(), pts = (state.series?.points || []).filter((p) => p.ts >= w0 && p.ts <= w1);
   $('n-cpu').textContent = pct(d.cpu);
   $('n-mem').textContent = pct(d.mem);
   $('n-net').textContent = `↓${rate(d.netRx)} ↑${rate(d.netTx)}`;
@@ -556,8 +556,9 @@ function lineChart(cv, pts, series, opt) {
   if (!w) return;
   const L = 58, R = 8, T = 8, B = 20, pw = w - L - R, ph = h - T - B;
   const max = opt.max || niceMax(Math.max(1, ...pts.flatMap((p) => series.map((s) => p[s.k] || 0))) * 1.1);
-  const t1 = Date.now(), t0 = t1 - Number($('range').value) * 1000;
+  const [t0, t1] = TW.win();
   const X = (t) => L + ((t - t0) / (t1 - t0)) * pw, Y = (v) => T + ph - (v / max) * ph;
+  TW.mark(cv, t0, t1, L / w, (w - R) / w);
   ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--border'); ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const v = (max * i) / 4, y = Math.round(Y(v)) + 0.5;
@@ -656,7 +657,7 @@ $('a-test').onclick = async () => {
     toast(r.results.map((x) => (x.ok ? `✓ <b>${x.channel}</b>: đã gửi` : `✗ <b>${x.channel}</b>: ${esc(x.error)}`)).join('<br>'), 8000);
   } catch (e) { toast('⚠ ' + esc(e.message)); } finally { $('a-test').disabled = false; }
 };
-$('range').onchange = fetchDetail;
+TW.init($('range'), () => fetchDetail());
 $('overlay').onclick = $('d-close').onclick = closeDetail;
 $('d-remove').onclick = async () => {
   const d = state.detail; if (!d || !confirm(`Xoá "${d.name}" (site ${d.site}) khỏi portal?\nVM sẽ xuất hiện lại nếu agent / collector vẫn gửi số liệu.`)) return;

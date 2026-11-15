@@ -349,9 +349,8 @@ public class Router extends HttpServlet {
         if (vm == null || !p.visible(vm, scope)) { c.error(404, "Không tìm thấy VM"); return; }
         if (metrics) {
           double ret = Json.num(cfg.path("retentionDays")) > 0 ? Json.num(cfg.path("retentionDays")) : 7;
-          double rq = Json.num(Json.F.textNode(c.q("range")));
-          long range = (long) Math.min(Math.max(60, rq > 0 ? rq : 3600), ret * 86400);
-          ObjectNode s = p.store.series(vm, range); s.put("id", id);
+          long[] w = Store.window(c.q("from"), c.q("to"), c.q("range"), ret);
+          ObjectNode s = p.store.series(vm, w[0], w[1]); s.put("id", id);
           c.json(200, s); return;
         }
         c.json(200, p.strip(p.view(vm, true, false), scope)); return;

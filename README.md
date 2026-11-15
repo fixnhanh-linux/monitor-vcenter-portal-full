@@ -2,8 +2,8 @@
 
 Hệ thống giám sát **CPU, RAM, Network, Disk** cho hàng nghìn máy ảo trên **nhiều site VMware vCenter**, gồm:
 
-- **Web admin** cho quản trị và nhân viên: dashboard realtime, host ESXi & datastore, cảnh báo (Telegram / Email / Webhook), báo cáo tháng theo khách hàng, quản lý vCenter / người dùng / API key ngay trên web, 2FA, nhật ký thao tác, sao lưu, Prometheus / InfluxDB.
-- **Web khách hàng** (cổng riêng, đặt ra internet): khách xem máy chủ của mình, biểu đồ, cảnh báo, báo cáo tháng.
+- **Web admin** cho quản trị và nhân viên: dashboard realtime, biểu đồ chọn khoảng tuỳ ý (kéo chuột để phóng to, chọn từ ngày–đến ngày), host ESXi & datastore, cảnh báo (Telegram / Email / Webhook), báo cáo tháng theo khách hàng, quản lý vCenter / người dùng / API key ngay trên web, 2FA, nhật ký thao tác, sao lưu, Prometheus / InfluxDB.
+- **Web khách hàng** (cổng riêng, đặt ra internet): khách xem máy chủ của mình, biểu đồ (phóng to, chọn ngày), cảnh báo, báo cáo tháng.
 - **Agent Docker** đặt tại từng site: đọc số liệu từ vCenter của site và gửi về web admin — không cài gì vào VM.
 
 <p align="center"><img src="docs/architecture.svg" alt="Kiến trúc tổng thể" width="900"></p>
@@ -185,8 +185,54 @@ sudo firewall-cmd --reload
 | Xem log service | `sudo journalctl -u vm-monitor-admin -f` |
 | Xem log ứng dụng | `sudo tail -f /var/lib/vm-monitor/data/portal.log` |
 | Đổi tên / cổng web khách | sửa `/etc/vm-monitor/khach.env` rồi `sudo systemctl restart vm-monitor-khach` |
-| Nâng cấp | tải zip bản mới, làm lại bước 2 → 4 (dữ liệu giữ nguyên) |
+| Cập nhật bản mới | `sudo /opt/vm-monitor/update.sh` (xem mục dưới) |
 | Gỡ cài đặt | `sudo bash uninstall.sh` (giữ dữ liệu trong `/var/lib/vm-monitor`) |
+
+#### Cập nhật bản mới khi đang chạy
+
+Dữ liệu (`/var/lib/vm-monitor`: tài khoản, vCenter, lịch sử, báo cáo) và cấu hình (`/etc/vm-monitor`: cổng, tên cổng khách) **không bị đụng tới** — chỉ thay 2 file jar. Gián đoạn khoảng 20–30 giây.
+
+Cập nhật lên bản mới nhất:
+
+```bash
+sudo /opt/vm-monitor/update.sh
+```
+
+Script: tải bản mới nhất ở Releases → so với bản đang chạy (giống thì bỏ qua) → giữ bản cũ ở `/opt/vm-monitor/prev/` và sao lưu `config.json` vào `backups/` → thay jar, khởi động lại → **bản mới không chạy được thì tự quay lại bản cũ**.
+
+Cập nhật lên một phiên bản cụ thể:
+
+```bash
+sudo /opt/vm-monitor/update.sh v1.0.1
+```
+
+Quay lại bản trước:
+
+```bash
+sudo /opt/vm-monitor/update.sh --rollback
+```
+
+Xem đang chạy bản nào:
+
+```bash
+cat /opt/vm-monitor/VERSION
+```
+
+Server cài bằng bản cũ chưa có `update.sh` (v1.0.0): chạy một lần lệnh dưới, các lần sau dùng `sudo /opt/vm-monitor/update.sh`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/fixnhanh-linux/monitor-vcenter-portal-full/main/deploy/linux/update.sh | sudo bash
+```
+
+Tự build từ git thay vì tải Releases:
+
+```bash
+cd monitor-vcenter-portal-full && git pull
+```
+
+```bash
+bash deploy/build.sh && sudo bash deploy/linux/install.sh deploy/dist
+```
 
 #### Cách B — Windows Server
 

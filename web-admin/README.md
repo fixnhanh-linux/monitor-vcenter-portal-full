@@ -53,24 +53,6 @@ docker run --rm -v "%cd%\web-admin:/src" -v vmmon-m2:/root/.m2 -w /src maven:3.9
 
 ## Chạy
 
-Thư mục portal (chứa `config.json`, `data/`, `public/`) gắn vào `/portal`:
-
-```bash
-docker run -d --name vm-monitor-admin -p 3000:3000 -p 3443:3443 -v "C:\path\Monitor VM Portal:/portal" --restart unless-stopped vm-monitor-admin
-```
-
-Có JDK 21 thì chạy thẳng: `java -jar vm-monitor-admin.jar --root "C:\path\Monitor VM Portal" --log-file data\portal.log`
-
-Lệnh quản trị: `java -jar vm-monitor-admin.jar adduser admin` · `java -jar vm-monitor-admin.jar apikey grafana --role read`
-
-> Chỉ chạy **một** bản (Node hoặc Java) trên cùng thư mục `data/` tại một thời điểm.
-
-## Đã kiểm tra
-
-Chạy song song với bản Node trên bản sao dữ liệu của một hệ thống thật (~1.600 VM, ~100 host, ~40 datastore): danh sách VM và mọi bộ lọc, khách hàng, site, tóm tắt, host, datastore, chi tiết + biểu đồ, báo cáo tháng, `/metrics`, cảnh báo, SSE, trang tĩnh, OpenAPI đều khớp; cookie đăng nhập do bản Node cấp dùng được trên bản Java; phạm vi khách hàng / phụ trách / nhân viên theo site đúng; nhận số liệu + cảnh báo chạy.
-
-Đang chạy thật (web-admin + web-khach) cho ~1.600 VM / ~100 host trên 2 vCenter, collector chạy ngoài Docker gửi vào bằng API key: số liệu, cảnh báo, ghi InfluxDB (định dạng Telegraf) và Prometheus / Grafana hoạt động bình thường.## Chạy
-
 Chạy như **service** (khuyên dùng): xem `deploy/linux/` (systemd, `sudo bash install.sh`) hoặc `deploy/windows/install.ps1` — hướng dẫn ở [README chính](../README.md#bước-1--web-admin--web-khách-chạy-service-trên-một-server-không-dùng-docker).
 
 Chạy tay (Java 21): `java -jar vm-monitor-admin.jar --root /var/lib/vm-monitor --log-file /var/lib/vm-monitor/data/portal.log` — thư mục `--root` chứa `config.json`, `data/`, `backups/`. Thêm `--demo` để chạy với dữ liệu giả.
@@ -79,8 +61,14 @@ Lệnh quản trị: `java -jar vm-monitor-admin.jar adduser admin` · `java -ja
 
 > Chỉ chạy **một** bản (Node hoặc Java) trên cùng thư mục `data/` tại một thời điểm.
 
+## Biểu đồ: khoảng thời gian, phóng to
+
+- Ô chọn: 15 phút · 1 giờ · 6 giờ · 24 giờ · 7 ngày · 30 ngày · **Tuỳ chỉnh…** (chọn từ ngày giờ → đến ngày giờ).
+- **Kéo chuột** trên biểu đồ để phóng to một đoạn (4 biểu đồ cùng phóng theo), **nhấp đúp** để thu nhỏ gấp đôi; chạm tới hiện tại thì tự quay về xem realtime. Nút **⟲ Về hiện tại** để thoát.
+- Áp dụng cho chi tiết VM, chi tiết host và cổng khách hàng. API: `GET /api/v1/vms/{site}/{id}/metrics?from=<epoch ms>&to=<epoch ms>` (hoặc `?range=<giây>`); khoảng ≤ 3 giờ trả điểm 20 giây, dài hơn trả điểm gộp 5 phút (tối đa ~1000 điểm). Xa nhất theo `retentionDays`.
+
 ## Đã kiểm tra
 
 Chạy song song với bản Node trên bản sao dữ liệu của một hệ thống thật (~1.600 VM, ~100 host, ~40 datastore): danh sách VM và mọi bộ lọc, khách hàng, site, tóm tắt, host, datastore, chi tiết + biểu đồ, báo cáo tháng, `/metrics`, cảnh báo, SSE, trang tĩnh, OpenAPI đều khớp; cookie đăng nhập do bản Node cấp dùng được trên bản Java; phạm vi khách hàng / phụ trách / nhân viên theo site đúng; nhận số liệu + cảnh báo chạy.
 
-Đang chạy thật (Docker, web-admin + web-khach) cho ~1.600 VM / ~100 host trên 2 vCenter, collector chạy ngoài Docker gửi vào bằng API key: số liệu, cảnh báo, ghi InfluxDB (định dạng Telegraf) và Prometheus / Grafana hoạt động bình thường.
+Đang chạy thật (web-admin + web-khach) cho ~1.600 VM / ~100 host trên 2 vCenter, collector chạy ngoài Docker gửi vào bằng API key: số liệu, cảnh báo, ghi InfluxDB (định dạng Telegraf) và Prometheus / Grafana hoạt động bình thường.

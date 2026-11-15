@@ -140,7 +140,7 @@ async function openHost(id) {
 }
 async function fetchDetail() {
   const id = state.selected; if (!id) return;
-  const [d, s] = await Promise.all([api('hosts/' + vmPath(id)), api(`hosts/${vmPath(id)}/metrics?range=${$('range').value}`)]);
+  const [d, s] = await Promise.all([api('hosts/' + vmPath(id)), api(`hosts/${vmPath(id)}/metrics?${TW.query()}`)]);
   if (state.selected !== id) return;
   state.detail = d; state.series = s; renderDetail();
 }
@@ -157,7 +157,7 @@ function renderDetail() {
     ['VM', `${h.vmsRunning} đang chạy / ${h.vms}`], ['Phần cứng', [h.vendor, h.model].filter(Boolean).join(' ') || '—'],
     ['Phiên bản', h.version], ['Uptime', h.uptime ? duration(h.uptime) : '—'], ['Alarm vCenter', { green: 'Bình thường', yellow: 'Có alarm cảnh báo (vàng)', red: 'Có alarm nghiêm trọng (đỏ)' }[h.health] || '—'],
   ].map(([k, v]) => `<div><small>${k}</small>${esc(v)}</div>`).join('');
-  const pts = state.series?.points || [];
+  const [w0, w1] = TW.win(), pts = (state.series?.points || []).filter((p) => p.ts >= w0 && p.ts <= w1);
   $('n-cpu').textContent = pct(h.cpu); $('n-mem').textContent = pct(h.mem);
   $('n-net').textContent = `↓${rate(h.netRx)} ↑${rate(h.netTx)}`; $('n-io').textContent = `R ${rate(h.diskRead)} W ${rate(h.diskWrite)}`;
   lineChart($('c-cpu'), pts, [{ k: 'cpu', c: '--cpu', fill: true }], { max: 100, fmt: (v) => v.toFixed(0) + '%', tip: pct });
@@ -180,8 +180,9 @@ function lineChart(cv, pts, series, opt) {
   const { ctx, w, h } = setupCanvas(cv); if (!w) return;
   const L = 58, R = 8, T = 8, B = 20, pw = w - L - R, ph = h - T - B;
   const max = opt.max || niceMax(Math.max(1, ...pts.flatMap((p) => series.map((s) => p[s.k] || 0))) * 1.1);
-  const t1 = Date.now(), t0 = t1 - Number($('range').value) * 1000;
+  const [t0, t1] = TW.win();
   const X = (t) => L + ((t - t0) / (t1 - t0)) * pw, Y = (v) => T + ph - (v / max) * ph;
+  TW.mark(cv, t0, t1, L / w, (w - R) / w);
   ctx.font = '11px system-ui, sans-serif'; ctx.fillStyle = css('--muted'); ctx.strokeStyle = css('--border'); ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) { const v = (max * i) / 4, y = Math.round(Y(v)) + 0.5; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(w - R, y); ctx.stroke(); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(opt.fmt(v), L - 6, y); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -216,7 +217,7 @@ $('sort').onchange = () => setF({ sort: $('sort').value });
 let qt; $('q').oninput = () => { clearTimeout(qt); qt = setTimeout(() => setF({ q: $('q').value }), 200); };
 $('hrows').onclick = (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) openHost(tr.dataset.id); };
 $('overlay').onclick = $('d-close').onclick = closeHost;
-$('range').onchange = fetchDetail;
+TW.init($('range'), () => fetchDetail().catch(() => {}));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHost(); });
 addEventListener('resize', renderDetail);
 

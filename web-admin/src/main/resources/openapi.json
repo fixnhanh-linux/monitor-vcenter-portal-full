@@ -661,6 +661,22 @@
        "type": "integer",
        "default": 3600
       }
+     },
+     {
+      "name": "from",
+      "in": "query",
+      "description": "Bắt đầu (epoch ms) — dùng cùng 'to' để lấy một khoảng tuỳ chỉnh thay cho 'range'",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "to",
+      "in": "query",
+      "description": "Kết thúc (epoch ms), mặc định là hiện tại",
+      "schema": {
+       "type": "integer"
+      }
      }
     ],
     "responses": {
