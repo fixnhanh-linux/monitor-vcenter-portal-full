@@ -1,0 +1,15 @@
+# Thêm job này vào prometheus.yml của bạn (mục scrape_configs).
+# API key: tạo trong portal -> Cài đặt -> Người dùng & API key -> vai trò "read", dán vào dòng credentials.
+# Nếu bật "/metrics không cần API key" trong Cài đặt -> Chung thì bỏ khối authorization.
+
+scrape_configs:
+  - job_name: vm-monitor-portal
+    scrape_interval: 30s          # collector lấy số liệu vCenter mỗi 20 giây
+    scrape_timeout: 20s
+    metrics_path: /metrics
+    scheme: http                  # đổi thành https nếu portal chạy sau HTTPS
+    authorization:
+      type: Bearer
+      credentials: vmk_THAY_BANG_API_KEY_READ
+    static_configs:
+      - targets: ["IP_PORTAL:3000"]

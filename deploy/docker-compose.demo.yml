@@ -1,0 +1,30 @@
+# Chạy thử với DỮ LIỆU GIẢ (không cần vCenter): 2 site, 120 VM, 6 khách hàng, host ESXi, datastore.
+#   cd deploy && docker compose -f docker-compose.demo.yml up -d --build
+#   Web admin : http://localhost:3000   (lần đầu: tạo tài khoản admin ngay trên trang đăng nhập)
+#   Web khách : http://localhost:8080   (tạo tài khoản vai trò "Khách hàng" trong Cài đặt, vd khách KhachA)
+services:
+  web-admin:
+    build: ../web-admin
+    image: vm-monitor-admin:latest
+    container_name: vm-monitor-admin-demo
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      DEMO: "1"                       # sinh số liệu giả
+    # lần đầu chép cấu hình mẫu ra config.json (tài khoản tạo khi chạy nằm ở đó, không đưa lên git)
+    entrypoint: ["sh", "-c", "[ -f /portal/config.json ] || cp /portal/config.example.json /portal/config.json; exec java -XX:MaxRAMPercentage=70 -jar /app/vm-monitor-admin.jar"]
+    volumes:
+      - ./demo:/portal                # demo/config.example.json (mẫu) -> config.json + data/ (tạo khi chạy)
+    ports:
+      - "3000:3000"
+
+  web-khach:
+    build: ../web-khach
+    image: vm-monitor-khach:latest
+    container_name: vm-monitor-khach-demo
+    depends_on: [web-admin]
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      ADMIN_URL: http://web-admin:3000
+      BRAND_NAME: Cổng khách hàng (demo)
+    ports:
+      - "8080:8080"

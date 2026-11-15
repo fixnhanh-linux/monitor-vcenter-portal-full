@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Việc của tôi · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a.on { background: var(--panel-2); color: var(--accent); }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .hello { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .hello h2 { margin: 0; font-size: 22px; }
+  .hello p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+  .stats { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)) !important; }
+  a.stat { color: inherit; text-decoration: none; display: block; }
+  a.stat:hover { border-color: var(--accent); }
+  .stat.good .v { color: var(--ok); }
+  .cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 14px; align-items: start; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+  .panel { padding: 0 !important; margin-bottom: 14px; }
+  .panel .panel-head { padding: 12px 14px; }
+  .list { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; }
+  .list li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 13px; }
+  .list li a { color: inherit; }
+  .list li:hover { background: var(--panel-2); }
+  .list .sub { color: var(--muted); font-size: 12px; }
+  .list .when { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .tbl th { text-align: left; color: var(--muted); font-size: 12px; font-weight: 600; padding: 7px 12px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; }
+  .tbl td { padding: 6px 12px; border-top: 1px solid var(--border); white-space: nowrap; }
+  .tbl tr.click { cursor: pointer; } .tbl tr.click:hover td { background: var(--panel-2); }
+  .tbl td.num, .tbl th.num { text-align: right; }
+  .wrap { max-height: 420px; overflow: auto; }
+  .ok-empty { padding: 26px 14px; text-align: center; color: var(--ok); font-size: 13.5px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .tag.crit { background: color-mix(in srgb, var(--crit) 15%, transparent); color: var(--crit); }
+  .tag.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .tag.lost { background: var(--panel-2); color: var(--muted); }
+  .seg button { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs" id="nav"><a href="home" class="on">Việc của tôi</a><a href="./">VM</a><a href="hosts" class="staff-only">Host ESXi &amp; Datastore</a><a href="report">Báo cáo</a></nav>
+  <div class="live" id="live"><i></i><span>Đang kết nối…</span></div>
+  <div class="spacer"></div>
+  <nav class="links"><a href="settings" id="settings-link" hidden>⚙ Cài đặt</a><span class="user"><a href="account" title="Tài khoản của tôi"><b id="who"></b></a><span class="role" id="role"></span><a href="#" id="logout">Đăng xuất</a></span></nav>
+</header>
+<main>
+  <section class="hello">
+    <div><h2 id="hi">Việc của tôi</h2><p id="scope"></p></div>
+    <span class="spacer"></span>
+    <span class="muted" id="updated" style="font-size:12.5px;color:var(--muted)"></span>
+  </section>
+
+  <section class="stats" id="stats"></section>
+
+  <div class="cols">
+    <div>
+      <section class="panel">
+        <div class="panel-head"><h2>Cảnh báo cần xử lý</h2><span class="count" id="a-count"></span><span class="spacer"></span>
+          <div class="seg" id="a-sev"><button data-v="" class="on">Tất cả</button><button data-v="critical">Nghiêm trọng</button><button data-v="warning">Cảnh báo</button></div></div>
+        <ul class="list" id="a-list"></ul>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>VM cần chú ý</h2><span class="count" id="w-count"></span><span class="spacer"></span>
+          <div class="seg" id="w-kind"><button data-v="" class="on">Tất cả</button><button data-v="lost">Mất kết nối</button><button data-v="disk">Ổ đĩa</button><button data-v="cpu">CPU</button><button data-v="mem">RAM</button></div></div>
+        <ul class="list" id="w-list"></ul>
+      </section>
+    </div>
+    <div>
+      <section class="panel">
+        <div class="panel-head"><h2 id="c-title">Khách hàng</h2><span class="spacer"></span><span style="font-size:12px;color:var(--muted)">bấm để mở danh sách VM</span></div>
+        <div class="wrap"><table class="tbl" id="c-tbl"></table></div>
+      </section>
+      <section class="panel staff-only" id="infra">
+        <div class="panel-head"><h2>Hạ tầng có vấn đề</h2><span class="spacer"></span><a href="hosts" style="font-size:12.5px">Xem tất cả →</a></div>
+        <ul class="list" id="i-list"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pct = (v) => `${(v ?? 0).toFixed(1)}%`;
+const ago = (ts) => { const s = Math.max(0, Math.round((Date.now() - ts) / 1000)); return s < 60 ? `${s} giây` : s < 3600 ? `${Math.round(s / 60)} phút` : s < 86400 ? `${Math.round(s / 3600)} giờ` : `${Math.round(s / 86400)} ngày`; };
+const S = { me: null, vms: [], alerts: [], hosts: [], ds: [], sev: '', kind: '', staff: false };
+const ROLE = { admin: 'admin', read: 'nhân viên', manager: 'phụ trách khách' };
+
+async function api(path) {
+  const r = await fetch('api/v1/' + path, { credentials: 'same-origin' });
+  if (r.status === 401) { location.href = 'login?next=/home'; throw new Error('unauthorized'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(d.error || `HTTP ${r.status}`), { status: r.status });
+  return d;
+}
+const vmLink = (v) => `./#${new URLSearchParams({ q: v.name, ...(v.site ? { site: v.site } : {}) })}`;
+
+async function load() {
+  const [vms, al] = await Promise.all([api('vms?all=1'), api('alerts')]);
+  S.vms = vms.data; S.alerts = al.data || [];
+  if (S.staff) {
+    try { const [h, d] = await Promise.all([api('hosts'), api('datastores')]); S.hosts = h.data; S.ds = d.data; } catch { S.hosts = []; S.ds = []; }
+  }
+  render();
+  $('updated').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+}
+
+function issues() {
+  const out = [];
+  for (const v of S.vms) {
+    if (v.status === 'offline') out.push({ v, kind: 'lost', level: 'crit', why: `Mất kết nối ${ago(v.lastSeen)}`, score: 1000 });
+    if (v.status !== 'online') continue;
+    if ((v.diskMax || 0) >= 90) out.push({ v, kind: 'disk', level: v.diskMax >= 95 ? 'crit' : 'warn', why: `Ổ đĩa ${pct(v.diskMax)}`, score: v.diskMax });
+    if (v.cpu >= 90) out.push({ v, kind: 'cpu', level: 'crit', why: `CPU ${pct(v.cpu)}`, score: 500 + v.cpu });
+    if (v.mem >= 90) out.push({ v, kind: 'mem', level: 'warn', why: `RAM ${pct(v.mem)}`, score: 400 + v.mem });
+  }
+  return out.sort((a, b) => b.score - a.score);
+}
+
+function render() {
+  const me = S.me, vms = S.vms, on = vms.filter((v) => v.status === 'online');
+  const crit = S.alerts.filter((a) => a.severity === 'critical').length, warn = S.alerts.length - crit;
+  const lost = vms.filter((v) => v.status === 'offline').length;
+  const iss = issues();
+  const hostBad = S.hosts.filter((h) => h.status !== 'ok' && h.status !== 'maintenance'), dsFull = S.ds.filter((d) => d.percent >= 85);
+  const card = (k, v, href, cls = '') => `<a class="stat ${cls}" href="${href}"><div class="k">${k}</div><div class="v">${v}</div></a>`;
+  $('stats').innerHTML = [
+    card('Cảnh báo nghiêm trọng', `<span class="${crit ? 'danger' : ''}">${crit}</span><small> · ${warn} cảnh báo</small>`, './#status=alert', crit ? '' : 'good'),
+    card('VM mất kết nối', `<span class="${lost ? 'danger' : ''}">${lost}</span><small> / ${vms.length} VM</small>`, './#status=offline', lost ? '' : 'good'),
+    card('Ổ đĩa ≥ 90%', `${iss.filter((x) => x.kind === 'disk').length}<small> VM</small>`, './#sort=disk'),
+    card('CPU / RAM ≥ 90%', `${iss.filter((x) => x.kind === 'cpu').length}<small> CPU · ${iss.filter((x) => x.kind === 'mem').length} RAM</small>`, './#sort=cpu'),
+    card('VM đang chạy', `${on.length}<small> / ${vms.length}</small>`, './#status=online', 'good'),
+    ...(S.staff ? [card('Host / datastore lỗi', `<span class="${hostBad.length ? 'danger' : ''}">${hostBad.length}</span><small> host · ${dsFull.length} DS ≥85%</small>`, 'hosts#status=problem', hostBad.length || dsFull.length ? '' : 'good')] : []),
+  ].join('');
+
+  // cảnh báo
+  const al = S.alerts.filter((a) => !S.sev || a.severity === S.sev).sort((a, b) => (a.severity === b.severity ? b.since - a.since : a.severity === 'critical' ? -1 : 1));
+  $('a-count').textContent = S.alerts.length; $('a-count').className = 'count' + (S.alerts.length ? '' : ' zero');
+  $('a-list').innerHTML = al.slice(0, 200).map((a) => {
+    const v = S.vms.find((x) => x.id === a.vmId);
+    const href = a.kind === 'vm' ? (v ? vmLink(v) : './') : `hosts#${new URLSearchParams({ ...(a.kind === 'datastore' ? { kind: 'ds' } : {}), site: a.site, q: a.vm })}`;
+    return `<li><span class="tag ${a.severity === 'critical' ? 'crit' : 'warn'}">${a.severity === 'critical' ? 'Nghiêm trọng' : 'Cảnh báo'}</span>
+      <a href="${href}">${esc(a.text)}${v?.customer ? `<div class="sub">${esc(v.customer)}</div>` : ''}</a><span class="when">${ago(a.since)}</span></li>`;
+  }).join('') || '<li style="display:block" class="ok-empty">✓ Không có cảnh báo nào</li>';
+
+  // VM cần chú ý
+  const w = iss.filter((x) => !S.kind || x.kind === S.kind);
+  $('w-count').textContent = iss.length; $('w-count').className = 'count' + (iss.length ? '' : ' zero');
+  $('w-list').innerHTML = w.slice(0, 200).map((x) => `<li><span class="tag ${x.kind === 'lost' ? 'lost' : x.level}">${{ lost: 'Mất kết nối', disk: 'Ổ đĩa', cpu: 'CPU', mem: 'RAM' }[x.kind]}</span>
+    <a href="${vmLink(x.v)}"><b>${esc(x.v.name)}</b> · ${esc(x.why)}<div class="sub">${esc([x.v.customer, x.v.site, x.v.ip].filter(Boolean).join(' · '))}</div></a><span></span></li>`).join('')
+    || '<li style="display:block" class="ok-empty">✓ Không có VM nào cần chú ý</li>';
+
+  // khách hàng
+  const map = new Map();
+  for (const v of vms) {
+    const k = v.customer || '';
+    let c = map.get(k); if (!c) map.set(k, c = { name: k, vms: 0, on: 0, cpu: 0, alerts: 0, lost: 0, disk: 0 });
+    c.vms++; if (v.status === 'online') { c.on++; c.cpu += v.cpu; } if (v.status === 'offline') c.lost++;
+    if ((v.diskMax || 0) >= 90) c.disk++;
+    c.alerts += S.alerts.filter((a) => a.vmId === v.id).length;
+  }
+  const custs = [...map.values()].filter((c) => c.name || me.role !== 'manager')
+    .sort((a, b) => b.alerts - a.alerts || b.lost - a.lost || b.vms - a.vms).slice(0, me.role === 'manager' ? 500 : 30);
+  $('c-title').textContent = me.role === 'manager' ? `Khách tôi phụ trách (${custs.length})` : 'Khách hàng nhiều vấn đề nhất';
+  $('c-tbl').innerHTML = `<tr><th>Khách hàng</th><th class="num">VM</th><th class="num">Chạy</th><th class="num">Cảnh báo</th><th class="num">Mất KN</th><th class="num">Ổ ≥90%</th><th class="num">CPU TB</th></tr>`
+    + custs.map((c) => `<tr class="click" data-c="${esc(c.name || '(none)')}"><td>${c.name ? esc(c.name) : '<i style="color:var(--muted)">(chưa gán)</i>'}</td><td class="num">${c.vms}</td><td class="num">${c.on}</td>
+      <td class="num">${c.alerts ? `<span class="danger">${c.alerts}</span>` : 0}</td><td class="num">${c.lost || 0}</td><td class="num">${c.disk || 0}</td><td class="num">${pct(c.on ? c.cpu / c.on : 0)}</td></tr>`).join('');
+
+  // hạ tầng
+  if (S.staff) {
+    const items = [...hostBad.map((h) => ({ t: `Host ${h.name}`, why: h.status === 'stale' ? 'không có số liệu mới' : h.status, sub: `${h.site} · ${h.cluster || ''}`, href: `hosts#${new URLSearchParams({ site: h.site, q: h.name })}`, lv: 'crit' })),
+      ...dsFull.sort((a, b) => b.percent - a.percent).map((d) => ({ t: `Datastore ${d.name}`, why: `đã dùng ${pct(d.percent)}`, sub: d.site, href: `hosts#${new URLSearchParams({ kind: 'ds', site: d.site, q: d.name })}`, lv: d.percent >= 95 ? 'crit' : 'warn' }))];
+    $('i-list').innerHTML = items.map((x) => `<li><span class="tag ${x.lv}">${x.lv === 'crit' ? 'Lỗi' : 'Sắp đầy'}</span><a href="${x.href}"><b>${esc(x.t)}</b> · ${esc(x.why)}<div class="sub">${esc(x.sub)}</div></a><span></span></li>`).join('')
+      || '<li style="display:block" class="ok-empty">✓ Host và datastore đều ổn</li>';
+  }
+}
+
+$('a-sev').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; S.sev = b.dataset.v; document.querySelectorAll('#a-sev button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+$('w-kind').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; S.kind = b.dataset.v; document.querySelectorAll('#w-kind button').forEach((x) => x.classList.toggle('on', x === b)); render(); };
+$('c-tbl').onclick = (e) => { const tr = e.target.closest('tr[data-c]'); if (tr) location.href = './#customer=' + encodeURIComponent(tr.dataset.c); };
+$('logout').onclick = async (e) => { e.preventDefault(); await fetch('api/v1/logout', { method: 'POST' }); location.href = 'login'; };
+
+function connect() {
+  const es = new EventSource('api/v1/stream');
+  const live = (on) => { $('live').className = 'live' + (on ? ' on' : ''); $('live').querySelector('span').textContent = on ? 'Realtime' : 'Mất kết nối – đang thử lại…'; };
+  es.onopen = () => live(true); es.onerror = () => live(false);
+  es.addEventListener('alert', (e) => { S.alerts = JSON.parse(e.data).active || []; render(); });
+  es.addEventListener('reload', () => setTimeout(() => location.reload(), 300));
+}
+
+(async function init() {
+  const me = S.me = await api('me');
+  if (me.enroll) return location.replace('account?enroll=1');
+  if (me.role === 'customer') return location.replace('my');
+  S.staff = me.role !== 'manager';
+  document.querySelectorAll('.staff-only').forEach((el) => { el.hidden = !S.staff; });
+  $('settings-link').hidden = me.role !== 'admin';
+  $('who').textContent = me.user; $('role').textContent = ROLE[me.role] || me.role;
+  const h = new Date().getHours();
+  $('hi').textContent = `${h < 11 ? 'Chào buổi sáng' : h < 14 ? 'Chào buổi trưa' : h < 18 ? 'Chào buổi chiều' : 'Chào buổi tối'}, ${me.user}`;
+  $('scope').textContent = me.customers ? `Bạn phụ trách ${me.customers.length} khách: ${me.customers.join(', ')}`
+    : me.sites ? `Bạn đang xem site: ${me.sites.join(', ')}` : 'Bạn đang xem toàn bộ các site';
+  await load();
+  connect();
+  setInterval(() => load().catch(() => {}), 30000);
+})().catch((e) => { if (e.message !== 'unauthorized') { const t = $('toast'); t.textContent = 'Không tải được dữ liệu: ' + e.message; t.style.display = 'block'; } });
+</script>
+<script src="imp.js"></script>
+</body>
+</html>

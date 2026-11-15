@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VM Monitor Portal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232f6fed'/><path d='M7 20l5-6 4 4 5-8 4 5' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs" style="display:flex;gap:2px"><a href="home" style="padding:6px 12px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--muted)">Việc của tôi</a><a href="./" style="padding:6px 12px;border-radius:8px;font-weight:600;font-size:13.5px;background:var(--panel-2)">VM</a><a href="hosts" style="padding:6px 12px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--muted)">Host ESXi &amp; Datastore</a><a href="report" style="padding:6px 12px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--muted)">Báo cáo</a><a id="grafana-link" target="_blank" rel="noopener" title="Mở dashboard Grafana (giữ bộ lọc site / khách hàng đang chọn)" style="padding:6px 12px;border-radius:8px;font-weight:600;font-size:13.5px;color:var(--muted)">Grafana ↗</a></nav>
+  <div class="live" id="live"><i></i><span>Đang kết nối…</span></div>
+  <div class="spacer"></div>
+  <nav class="links">
+    <a href="settings" class="admin-only">⚙ Cài đặt</a>
+    <a href="docs" target="_blank" rel="noopener">API</a>
+    <span id="user" class="user"></span>
+  </nav>
+</header>
+
+<main>
+  <section class="sites" id="sites"></section>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="panel alerts" id="alerts">
+    <div class="panel-head">
+      <h2>Cảnh báo</h2><span class="count zero" id="a-count">0</span>
+      <span id="a-channels" class="chips"></span>
+      <div class="spacer"></div>
+      <div class="seg" id="a-tabs"><button data-tab="active" class="on">Đang hoạt động</button><button data-tab="history">Lịch sử</button></div>
+      <button id="a-test" class="admin-only" title="Gửi thông báo thử tới các kênh đã bật">Gửi thử</button>
+      <button id="a-toggle" class="ghost" title="Thu gọn / mở rộng">▾</button>
+    </div>
+    <div id="a-body"></div>
+  </section>
+
+  <section class="toolbar">
+    <div class="seg" id="status">
+      <button data-v="" class="on">Tất cả <b id="c-all"></b></button>
+      <button data-v="online">Online <b id="c-online"></b></button>
+      <button data-v="offline">Mất kết nối <b id="c-offline"></b></button>
+      <button data-v="off">Tắt nguồn <b id="c-off"></b></button>
+      <button data-v="alert">Cảnh báo <b id="c-alert"></b></button>
+    </div>
+    <input id="q" type="search" placeholder="Tìm tên, IP, host, cluster…" autocomplete="off">
+    <select id="cust" aria-label="Khách hàng" style="max-width:220px"><option value="">Tất cả khách hàng</option></select>
+    <select id="sort" aria-label="Sắp xếp">
+      <option value="name">Tên A→Z</option>
+      <option value="site">Site</option>
+      <option value="customer">Khách hàng</option>
+      <option value="cpu">CPU cao nhất</option>
+      <option value="mem">RAM cao nhất</option>
+      <option value="disk">Disk cao nhất</option>
+      <option value="net">Network cao nhất</option>
+    </select>
+    <div class="seg" id="view"><button data-v="table" class="on" title="Bảng">☰ Bảng</button><button data-v="cards" title="Thẻ">▦ Thẻ</button></div>
+    <button id="csv" title="Tải danh sách đang lọc dạng CSV (mở bằng Excel)">⤓ CSV</button>
+  </section>
+
+  <section class="bulk" id="bulk" hidden>
+    <b id="bulk-n"></b>
+    <input id="bulk-cust" list="cust-list" placeholder="Tên khách hàng…" autocomplete="off">
+    <button class="primary" id="bulk-assign">Gán khách</button>
+    <button id="bulk-clear" title="Bỏ gán tay: VM quay về khách nhận diện tự động">Bỏ gán tay</button>
+    <span class="spacer"></span>
+    <button class="ghost" id="bulk-all"></button>
+    <button class="ghost" id="bulk-none">Bỏ chọn</button>
+    <span id="bulk-msg" class="msg"></span>
+  </section>
+
+  <section id="tablewrap" class="panel">
+    <div class="tscroll"><table class="vmtable">
+      <thead><tr>
+        <th class="pickc" id="pick-th"><input type="checkbox" id="pick-page" title="Chọn / bỏ chọn cả trang (để gán khách hàng loạt)"></th><th data-sort="name">VM</th><th data-sort="customer">Khách hàng</th><th data-sort="site">Site</th><th>IP</th><th>Cluster / Host</th>
+        <th data-sort="cpu">CPU</th><th data-sort="mem">RAM</th><th data-sort="disk">Disk</th>
+        <th data-sort="net">Network ↓ / ↑</th><th>Disk I/O R / W</th><th>Hệ điều hành</th>
+      </tr></thead>
+      <tbody id="vmrows"></tbody>
+    </table></div>
+  </section>
+  <section class="grid" id="grid" hidden></section>
+  <div class="empty" id="empty" hidden></div>
+  <nav class="pager" id="pager"></nav>
+</main>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <header class="top">
+    <h1 id="d-title">—</h1>
+    <div class="live" id="d-status"></div>
+    <div class="spacer"></div>
+    <select id="range" aria-label="Khoảng thời gian">
+      <option value="900">15 phút</option>
+      <option value="3600" selected>1 giờ</option>
+      <option value="21600">6 giờ</option>
+      <option value="86400">24 giờ</option>
+      <option value="604800">7 ngày</option>
+    </select>
+    <button id="d-remove" class="admin-only" title="Xoá VM khỏi portal">Xoá</button>
+    <button id="d-close">Đóng ✕</button>
+  </header>
+  <div class="body">
+    <div class="info" id="d-info"></div>
+    <div class="panel admin-only" id="d-cust" style="padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b style="font-size:13px">Gán khách hàng</b><input id="d-cust-in" list="cust-list" placeholder="Tên khách hàng" style="flex:1;min-width:180px">
+      <button id="d-cust-save">Lưu</button><button id="d-cust-clear" title="Bỏ gán tay, quay về nhận diện tự động">Bỏ gán</button><span id="d-cust-msg" style="font-size:12px;color:var(--muted)"></span>
+      <datalist id="cust-list"></datalist></div>
+    <div class="panel d-alerts" id="d-alerts"></div>
+    <div class="charts">
+      <div class="chart"><h3>CPU <span class="now" id="n-cpu"></span></h3><canvas id="c-cpu"></canvas></div>
+      <div class="chart"><h3>RAM <span class="now" id="n-mem"></span></h3><canvas id="c-mem"></canvas></div>
+      <div class="chart"><h3>Network <span class="legend"><span><i style="background:var(--rx)"></i>In</span><span><i style="background:var(--tx)"></i>Out</span></span><span class="now" id="n-net"></span></h3><canvas id="c-net"></canvas></div>
+      <div class="chart"><h3>Disk I/O <span class="legend"><span><i style="background:var(--rx)"></i>Read</span><span><i style="background:var(--disk)"></i>Write</span></span><span class="now" id="n-io"></span></h3><canvas id="c-io"></canvas></div>
+    </div>
+    <div class="panel"><table class="mounts">
+      <thead><tr><th>Phân vùng</th><th>Dung lượng</th><th>Đã dùng</th><th>Còn trống</th><th style="width:32%">Sử dụng</th></tr></thead>
+      <tbody id="d-mounts"></tbody>
+    </table></div>
+    <p class="hint" id="d-note" hidden></p>
+    <p class="hint">API: <code id="d-api"></code></p>
+  </div>
+</aside>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+<script src="imp.js"></script>
+</body>
+</html>

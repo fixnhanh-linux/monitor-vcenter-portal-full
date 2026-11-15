@@ -1,0 +1,31 @@
+# Triển khai web admin + web khách trên một server (Docker Compose).
+#   cd deploy && docker compose up -d --build
+# Thư mục ./portal-data chứa config.json + data/ (chép từ máy cũ sang, hoặc để trống để tạo mới).
+# Agent ở các site: xem ../agent-docker. Prometheus / Grafana: xem ../grafana/stack.
+services:
+  web-admin:
+    build: ../web-admin
+    image: vm-monitor-admin:latest
+    container_name: vm-monitor-admin
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./portal-data:/portal          # config.json, data/ (lịch sử, khoá, báo cáo, nhật ký), backups/
+    ports:
+      - "3000:3000"                    # chỉ mở trong mạng nội bộ / VPN (agent các site gọi vào đây)
+      - "3443:3443"                    # HTTPS nếu bật trong Cài đặt
+
+  web-khach:
+    build: ../web-khach
+    image: vm-monitor-khach:latest
+    container_name: vm-monitor-khach
+    restart: unless-stopped
+    depends_on: [web-admin]
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      ADMIN_URL: http://web-admin:3000
+      BRAND_NAME: Cổng khách hàng
+      TRUST_PROXY: "0"                 # "1" khi đặt sau nginx / Caddy có HTTPS
+    ports:
+      - "8080:8080"                    # mở ra internet (nên đặt sau HTTPS)

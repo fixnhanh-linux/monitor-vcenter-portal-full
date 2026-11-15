@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tài khoản · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  main { max-width: 860px; }
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .card-s { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .card-s h3 { margin: 0 0 4px; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+  .card-s p.d { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; }
+  .form label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 600; align-content: end; }
+  .form input { width: 100%; height: 36px; box-sizing: border-box; font-weight: 400; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .msg { font-size: 13px; } .msg.ok { color: var(--ok); } .msg.err { color: var(--crit); }
+  .st { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 99px; }
+  .st.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .st.off { background: var(--panel-2); color: var(--muted); }
+  .st.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .warnbox { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 10px; padding: 12px 14px; font-size: 13.5px; margin-bottom: 14px; line-height: 1.5; }
+  .steps { display: grid; grid-template-columns: auto 1fr; gap: 18px 22px; align-items: start; }
+  .qr { background: #fff; padding: 8px; border-radius: 10px; border: 1px solid var(--border); line-height: 0; }
+  .secret { font-family: ui-monospace, Consolas, monospace; font-size: 15px; letter-spacing: .08em; background: var(--panel-2); padding: 8px 10px; border-radius: 8px; word-break: break-all; user-select: all; }
+  ol { margin: 0; padding-left: 18px; font-size: 13.5px; line-height: 1.7; }
+  .codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; font-family: ui-monospace, Consolas, monospace; font-size: 15px; background: var(--panel-2); padding: 14px 16px; border-radius: 10px; margin: 10px 0; }
+  .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 13.5px; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  #code-in { font-size: 20px; letter-spacing: .3em; text-align: center; max-width: 180px; }
+  @media (max-width: 600px) { .steps { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs" id="nav"><a href="./">VM</a><a href="report">Báo cáo</a></nav>
+  <div class="spacer"></div>
+  <nav class="links"><span id="settings-link" hidden></span><span class="user"><b id="who"></b><a href="#" id="logout">Đăng xuất</a></span></nav>
+</header>
+<main>
+  <div class="warnbox" id="enroll-box" hidden>🔐 Quản trị viên yêu cầu bật <b>xác thực 2 lớp</b> cho tài khoản của bạn. Bật xong mới dùng được portal.</div>
+  <div class="warnbox" id="rec-box" hidden>Bạn vừa đăng nhập bằng <b>mã khôi phục</b> (còn <b id="rec-left"></b> mã). Nếu mất điện thoại, hãy tắt rồi bật lại 2FA với điện thoại mới, hoặc tạo bộ mã khôi phục mới.</div>
+
+  <section class="card-s">
+    <h3>Tài khoản</h3>
+    <div class="kv" id="info"></div>
+  </section>
+
+  <section class="card-s" id="tfa">
+    <h3>Xác thực 2 lớp (2FA) <span class="st" id="tfa-st"></span></h3>
+    <p class="d">Ngoài mật khẩu, mỗi lần đăng nhập cần thêm mã 6 số đổi mỗi 30 giây từ app trên điện thoại (Google Authenticator, Microsoft Authenticator, Authy…). Lộ mật khẩu cũng không ai vào được nếu không có điện thoại của bạn.</p>
+    <div id="tfa-off" hidden><div class="actions" style="margin-top:0"><button class="primary" id="tfa-start">Bật 2FA</button><span class="msg" id="tfa-msg"></span></div></div>
+    <div id="tfa-setup" hidden>
+      <div class="steps">
+        <div class="qr" id="qr"></div>
+        <div>
+          <ol>
+            <li>Cài app <b>Google Authenticator</b> hoặc <b>Microsoft Authenticator</b> trên điện thoại.</li>
+            <li>Trong app bấm <b>＋</b> → <b>Quét mã QR</b> và quét mã bên trái.<br>
+              <span style="color:var(--muted)">Không quét được? Chọn "Nhập khoá thiết lập" và gõ khoá:</span>
+              <div class="secret" id="secret"></div></li>
+            <li>Nhập mã 6 số app hiện ra:</li>
+          </ol>
+          <div class="actions"><input id="code-in" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code"><button class="primary" id="tfa-enable">Xác nhận &amp; bật</button><button class="ghost" id="tfa-cancel">Huỷ</button></div>
+          <div class="msg" id="tfa-msg2" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+    <div id="tfa-codes" hidden>
+      <p class="d" style="margin:0"><b style="color:var(--text)">Mã khôi phục</b> — dùng khi mất điện thoại, mỗi mã chỉ dùng được 1 lần. <b style="color:var(--crit)">Chỉ hiện một lần này</b>: tải về hoặc in ra, cất ở nơi an toàn.</p>
+      <div class="codes" id="codes"></div>
+      <div class="actions" style="margin-top:0"><button id="codes-dl">⬇ Tải file .txt</button><button id="codes-copy">Sao chép</button><span class="spacer"></span><button class="primary" id="codes-done">Tôi đã lưu xong</button></div>
+    </div>
+    <div id="tfa-on" hidden>
+      <div class="kv" style="margin-bottom:12px"><span>Bật từ</span><span id="tfa-since"></span><span>Mã khôi phục còn</span><span id="tfa-left"></span></div>
+      <div class="form">
+        <label>Mã 2FA hiện tại <input id="on-code" inputmode="numeric" maxlength="6" placeholder="123456"></label>
+        <label id="pw-wrap">Mật khẩu <small style="font-weight:400;color:var(--muted)">(để tắt 2FA)</small><input id="on-pw" type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="actions"><button id="tfa-regen">Tạo lại mã khôi phục</button><button id="tfa-disable">Tắt 2FA</button><span class="msg" id="tfa-msg3"></span></div>
+    </div>
+  </section>
+
+  <section class="card-s" id="pw-card">
+    <h3>Đổi mật khẩu</h3>
+    <p class="d">Đổi xong, mọi phiên đăng nhập khác của tài khoản này sẽ bị đăng xuất. Nên tắt Unikey khi gõ mật khẩu.</p>
+    <div class="form">
+      <label>Mật khẩu hiện tại <input id="pw-cur" type="password" autocomplete="current-password"></label>
+      <label>Mật khẩu mới <input id="pw-new" type="password" autocomplete="new-password" placeholder="ít nhất 8 ký tự"></label>
+      <label>Nhập lại mật khẩu mới <input id="pw-new2" type="password" autocomplete="new-password"></label>
+    </div>
+    <div class="actions"><span class="spacer"></span><span class="msg" id="pw-msg"></span><button class="primary" id="pw-save">Đổi mật khẩu</button></div>
+  </section>
+</main>
+
+<script src="qr.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let A = null, codes = null;
+async function api(path, body) {
+  const r = await fetch('api/v1/' + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { location.href = 'login?next=/account'; throw new Error('unauthorized'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+function msg(id, t, ok = true) { $(id).textContent = t; $(id).className = 'msg ' + (ok ? 'ok' : 'err'); }
+const ROLE = { admin: 'Quản trị (xem + cài đặt)', viewer: 'Nhân viên', manager: 'Nhân viên phụ trách khách', customer: 'Khách hàng' };
+
+function render() {
+  $('who').textContent = A.user;
+  $('settings-link').hidden = A.role !== 'admin';
+  $('nav').innerHTML = A.role === 'customer' ? '<a href="my">Máy chủ của tôi</a><a href="report">Báo cáo tháng</a>'
+    : A.role === 'manager' ? '<a href="home">Việc của tôi</a><a href="./">VM</a><a href="report">Báo cáo</a>' : '<a href="home">Việc của tôi</a><a href="./">VM</a><a href="hosts">Host ESXi &amp; Datastore</a><a href="report">Báo cáo</a>';
+  $('info').innerHTML = `<span>Tên đăng nhập</span><span><b>${esc(A.user)}</b></span><span>Vai trò</span><span>${ROLE[A.role] || A.role}</span>`
+    + (A.customers ? `<span>Khách hàng</span><span>${A.customers.map(esc).join(', ')}</span>` : '')
+    + (A.sites ? `<span>Site được xem</span><span>${A.sites.map(esc).join(', ')}</span>` : '');
+  $('enroll-box').hidden = !A.enroll;
+  $('pw-card').hidden = !!A.enroll;
+  $('tfa-st').className = 'st ' + (A.totp ? 'ok' : A.required ? 'warn' : 'off');
+  $('tfa-st').textContent = A.totp ? 'Đang bật' : A.required ? 'Bắt buộc' : 'Đang tắt';
+  if (codes) return;
+  $('tfa-off').hidden = A.totp || !$('tfa-setup').hidden;
+  $('tfa-on').hidden = !A.totp;
+  $('tfa-left').textContent = `${A.recoveryLeft} / 10`;
+  $('tfa-since').textContent = A.totpSince ? new Date(A.totpSince).toLocaleString('vi-VN') : '—';
+  $('tfa-disable').hidden = $('pw-wrap').hidden = A.required;
+}
+async function load() { A = await api('account'); render(); }
+
+$('tfa-start').onclick = async () => {
+  try {
+    const d = await api('account/2fa/setup', {});
+    $('secret').textContent = d.secret.replace(/(.{4})/g, '$1 ').trim();
+    try { $('qr').innerHTML = qrSvg(d.uri, { size: 196 }); } catch { $('qr').innerHTML = '<div style="width:196px;padding:20px;font-size:12px;color:#333">Không tạo được mã QR — nhập khoá bên cạnh</div>'; }
+    $('tfa-off').hidden = true; $('tfa-setup').hidden = false; $('code-in').value = ''; $('code-in').focus();
+  } catch (e) { msg('tfa-msg', '✗ ' + e.message, false); }
+};
+$('tfa-cancel').onclick = () => { $('tfa-setup').hidden = true; render(); };
+$('code-in').addEventListener('input', () => { if (/^\d{6}$/.test($('code-in').value)) $('tfa-enable').click(); });
+$('tfa-enable').onclick = async () => {
+  try {
+    const d = await api('account/2fa/enable', { code: $('code-in').value.trim() });
+    showCodes(d.recovery); $('tfa-setup').hidden = true;
+    A = await api('account'); render();
+  } catch (e) { msg('tfa-msg2', '✗ ' + e.message, false); $('code-in').select(); }
+};
+function showCodes(list) {
+  codes = list;
+  $('codes').innerHTML = list.map((c) => `<span>${esc(c)}</span>`).join('');
+  $('tfa-codes').hidden = false; $('tfa-on').hidden = true; $('tfa-off').hidden = true;
+}
+const codesText = () => `Mã khôi phục VM Monitor — tài khoản ${A.user}\nTạo lúc ${new Date().toLocaleString('vi-VN')}\nMỗi mã dùng được 1 lần khi mất điện thoại.\n\n${codes.join('\n')}\n`;
+$('codes-dl').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([codesText()], { type: 'text/plain' })); a.download = `vm-monitor-ma-khoi-phuc-${A.user}.txt`; a.click(); };
+$('codes-copy').onclick = async () => { try { await navigator.clipboard.writeText(codesText()); $('codes-copy').textContent = '✓ Đã sao chép'; } catch { $('codes-copy').textContent = 'Không sao chép được'; } };
+$('codes-done').onclick = () => {
+  codes = null; $('tfa-codes').hidden = true;
+  if (new URLSearchParams(location.search).get('enroll')) return location.replace('./');
+  render();
+};
+$('tfa-regen').onclick = async () => {
+  try { const d = await api('account/2fa/recovery', { code: $('on-code').value.trim() }); $('on-code').value = ''; showCodes(d.recovery); } catch (e) { msg('tfa-msg3', '✗ ' + e.message, false); }
+};
+$('tfa-disable').onclick = async () => {
+  if (!confirm('Tắt xác thực 2 lớp? Tài khoản sẽ chỉ còn bảo vệ bằng mật khẩu.')) return;
+  try { await api('account/2fa/disable', { code: $('on-code').value.trim(), password: $('on-pw').value }); $('on-code').value = $('on-pw').value = ''; await load(); msg('tfa-msg3', '✓ Đã tắt 2FA'); } catch (e) { msg('tfa-msg3', '✗ ' + e.message, false); }
+};
+$('pw-save').onclick = async () => {
+  if ($('pw-new').value.length < 8) return msg('pw-msg', '✗ Mật khẩu mới cần ít nhất 8 ký tự', false);
+  if ($('pw-new').value !== $('pw-new2').value) return msg('pw-msg', '✗ Hai lần nhập không khớp', false);
+  try { await api('account/password', { current: $('pw-cur').value, next: $('pw-new').value }); ['pw-cur', 'pw-new', 'pw-new2'].forEach((i) => { $(i).value = ''; }); msg('pw-msg', '✓ Đã đổi mật khẩu'); } catch (e) { msg('pw-msg', '✗ ' + e.message, false); }
+};
+$('logout').onclick = async (e) => { e.preventDefault(); await fetch('api/v1/logout', { method: 'POST' }); location.href = 'login'; };
+
+(async () => {
+  const q = new URLSearchParams(location.search);
+  if (q.get('recovery')) { $('rec-box').hidden = false; $('rec-left').textContent = sessionStorage.getItem('vm-recovery-used') || '?'; }
+  try { await load(); } catch (e) { if (e.message !== 'unauthorized') document.querySelector('main').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+})();
+</script>
+</body>
+</html>

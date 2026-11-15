@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cài đặt · VM Monitor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232f6fed'/><path d='M7 20l5-6 4 4 5-8 4 5' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="stylesheet" href="app.css">
+<style>
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a.on { background: var(--panel-2); color: var(--accent); }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
+  .tabs button { border: 0; background: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab { display: none; } .tab.on { display: block; }
+  .card-s { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .card-s h3 { margin: 0 0 4px; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+  .card-s > p.d { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .form { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px 16px; }
+  .form label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 600; }
+  .form label small { font-weight: 400; color: var(--muted); }
+  .form input, .form select, .form textarea { width: 100%; font-weight: 400; }
+  .form .full { grid-column: 1 / -1; }
+  .check { display: flex !important; align-items: center; gap: 8px; grid-template-columns: none; font-weight: 500 !important; }
+  .check input { width: auto; }
+  .actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--crit); }
+  .st { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .st.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .st.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .st.err { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit); }
+  .st.off { background: var(--panel-2); color: var(--muted); }
+  /* ô nhập thẳng hàng: chữ phụ (small) không đẩy ô xuống, mọi ô cùng chiều cao */
+  .form label { align-content: end; grid-template-rows: none; }
+  .form input:not([type=checkbox]):not([type=radio]), .form select { height: 36px; box-sizing: border-box; }
+  table.s td, table.s th { font-size: 13px; vertical-align: middle; }
+  table.s td:last-child:not(:first-child) { text-align: right; white-space: nowrap; }
+  table.s td button { padding: 4px 12px; font-size: 12.5px; }
+  table.s td.sm { color: var(--muted); font-size: 12px; }
+  .vc-list { display: grid; gap: 12px; }
+  .vc { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .vc-h { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vc-h b { font-size: 15px; }
+  .vc-h .sp { flex: 1; }
+  .vc-meta { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; margin-top: 6px; }
+  .vc-meta b { color: var(--text); font-weight: 600; }
+  .vc-err { margin-top: 8px; font-size: 12.5px; color: var(--crit); overflow-wrap: anywhere; }
+  dialog { border: 1px solid var(--border); border-radius: 14px; padding: 0; width: min(760px, calc(100% - 24px)); background: var(--bg); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog header { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  dialog header h3 { margin: 0; font-size: 16px; flex: 1; }
+  dialog .body { padding: 16px 18px; max-height: 70vh; overflow-y: auto; }
+  dialog footer { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: var(--panel); flex-wrap: wrap; align-items: center; }
+  fieldset { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 14px; margin: 14px 0 0; }
+  legend { font-size: 13px; font-weight: 700; padding: 0 6px; }
+  .rules td input, .rules td select { width: 100%; min-width: 60px; padding: 5px 7px; font-size: 13px; }
+  .rules td { padding: 5px 6px; }
+  .rules { min-width: 1150px; }
+  .rules [data-k=target] { min-width: 110px; } .rules [data-k=metric] { min-width: 190px; }
+  .rules [data-k=severity] { min-width: 96px; } .rules [data-k=op] { min-width: 54px; }
+  .rules [data-k=threshold], .rules [data-k=for] { min-width: 76px; }
+  .keybox { font-family: ui-monospace, Consolas, monospace; background: var(--panel-2); border: 1px dashed var(--accent); padding: 10px 12px; border-radius: 8px; overflow-wrap: anywhere; margin-top: 10px; }
+  .warnbox { background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 10px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs"><a href="home">Việc của tôi</a><a href="./">VM</a><a href="hosts">Host ESXi &amp; Datastore</a><a href="report">Báo cáo</a><a id="grafana-link" target="_blank" rel="noopener" title="Mở dashboard Grafana">Grafana ↗</a></nav>
+  <div class="spacer"></div>
+  <nav class="links"><a href="settings" style="font-weight:600">⚙ Cài đặt</a><a href="docs" target="_blank" rel="noopener">API</a><span id="user" class="user"></span></nav>
+</header>
+<main>
+  <div id="openwarn" class="warnbox" hidden>⚠ Portal đang <b>mở</b>: chưa có tài khoản nào nên ai vào được trang này cũng sửa được cấu hình. Tạo tài khoản admin ở tab <b>Người dùng & API key</b>.</div>
+  <nav class="tabs" id="tabs">
+    <button data-t="vc" class="on">vCenter</button>
+    <button data-t="customers">Khách hàng</button>
+    <button data-t="alerts">Rule cảnh báo</button>
+    <button data-t="notify">Kênh gửi</button>
+    <button data-t="influx">InfluxDB</button>
+    <button data-t="users">Người dùng & bảo mật</button>
+    <button data-t="ops">Vận hành</button>
+    <button data-t="audit">Nhật ký</button>
+    <button data-t="general">Chung</button>
+  </nav>
+
+  <!-- vCenter -->
+  <section class="tab on" id="t-vc">
+    <div class="card-s">
+      <h3>Collector</h3>
+      <p class="d">Máy lấy số liệu từ vCenter. Site ở xa (không thông mạng với portal hay site khác) thì đặt một collector trong mạng của site đó — collector chỉ cần <b>gọi ra</b> portal qua HTTPS, không cần mở port vào site.</p>
+      <table class="s"><thead><tr><th>Collector</th><th>Trạng thái</th><th>Máy</th><th>vCenter</th><th>Báo về</th><th></th></tr></thead><tbody id="collectors"></tbody></table>
+      <div class="actions"><button id="col-add">＋ Thêm collector cho site ở xa</button></div>
+    </div>
+    <div class="actions" style="margin:0 0 14px">
+      <button class="primary" id="vc-add">＋ Thêm vCenter / host ESXi</button>
+      <span class="msg" style="color:var(--muted)">Thêm vCenter là tự có mọi host ESXi và VM bên trong. Host ESXi không có vCenter thì nhập thẳng IP của host.</span>
+    </div>
+    <div class="vc-list" id="vc-list"></div>
+  </section>
+
+  <!-- khách hàng -->
+  <section class="tab" id="t-customers">
+    <div class="card-s">
+      <h3>Khách hàng <span class="st ok" id="cu-sum"></span></h3>
+      <p class="d">Portal xác định VM thuộc khách hàng nào theo thứ tự nguồn bên dưới — nguồn đầu tiên ra kết quả sẽ được dùng. Kéo thứ tự bằng nút ↑ ↓.</p>
+      <div id="cu-sources"></div>
+    </div>
+    <div class="card-s">
+      <h3>Gợi ý gán khách <span class="st off" id="sg-sum"></span></h3>
+      <p class="d">Portal đoán khách cho các VM <b>chưa có khách</b>: cùng mã tài khoản (8 số trong tên VM) với VM đã có khách, tên VM bắt đầu bằng tên khách, hoặc nhiều VM cùng mã / tiền tố tên (khách mới). Sửa tên khách nếu cần, bỏ chọn nhóm sai, rồi bấm <b>Gán các nhóm đã chọn</b> (gán tay, sửa lại được).</p>
+      <div class="actions" style="margin-top:0"><button id="sg-load">Tìm gợi ý</button><label class="check" style="font-size:12.5px"><input type="checkbox" id="sg-low"> hiện cả độ tin cậy thấp</label><span class="spacer"></span><span class="msg" id="sg-msg"></span><button class="primary" id="sg-apply" disabled>Gán các nhóm đã chọn</button></div>
+      <div class="tscroll" style="max-height:460px;overflow:auto"><table class="s" id="sg-table" hidden><thead><tr><th><input type="checkbox" id="sg-all" checked></th><th>Khách hàng</th><th>Độ tin cậy</th><th>Lý do</th><th>VM</th></tr></thead><tbody id="sg-rows"></tbody></table></div>
+    </div>
+    <div class="card-s">
+      <h3>Quy tắc theo tên VM</h3>
+      <p class="d">VM có tên khớp mẫu (hỗ trợ <code>*</code>, nhiều mẫu cách nhau dấu phẩy) sẽ thuộc khách hàng tương ứng. Ví dụ <code>KHE-*</code>, <code>*khachb*</code>.</p>
+      <div class="tscroll"><table class="rules"><thead><tr><th>Khách hàng</th><th>Mẫu tên VM</th><th>Chỉ ở site (tuỳ chọn)</th><th>Số VM khớp</th><th></th></tr></thead><tbody id="cu-rules"></tbody></table></div>
+      <div class="actions"><button id="cu-rule-add">＋ Thêm quy tắc</button><span class="spacer"></span><span class="msg" id="cu-msg"></span><button class="primary" id="cu-save">Lưu nguồn &amp; quy tắc</button></div>
+    </div>
+    <div class="card-s">
+      <h3>Gán hàng loạt (dán từ Excel / CSV)</h3>
+      <p class="d">Mỗi dòng: <code>tên VM</code> hoặc <code>site/tên VM</code>, rồi dấu phẩy / tab / chấm phẩy, rồi <code>tên khách hàng</code>. Để trống tên khách = bỏ gán tay. Gán tay luôn được ưu tiên cao nhất (<span id="cu-manual"></span> VM đang gán tay).</p>
+      <textarea id="cu-import" rows="6" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12.5px" placeholder="KhachD_10001, Khách D&#10;KHE-APP01-10002-0001	Khách E&#10;SITE-HN/vault-khachb-01; Khách B"></textarea>
+      <div class="actions"><span class="msg" id="cu-imp-msg"></span><span class="spacer"></span><button class="primary" id="cu-import-btn">Gán</button></div>
+    </div>
+    <div class="card-s">
+      <h3>Danh sách khách hàng</h3>
+      <div class="tscroll" style="max-height:420px;overflow:auto"><table class="s"><thead><tr><th>Khách hàng</th><th>VM</th><th>Online</th><th>Tắt</th><th>Site</th><th>Nhận diện từ</th></tr></thead><tbody id="cu-list"></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- rules -->
+  <section class="tab" id="t-alerts">
+    <div class="card-s">
+      <h3>Rule cảnh báo</h3>
+      <p class="d">Cảnh báo khi số liệu vượt ngưỡng liên tục trong "Thời gian" (giây). Site / VM: để trống = tất cả, nhiều giá trị cách nhau dấu phẩy, hỗ trợ <code>*</code>.</p>
+      <div class="form" style="margin-bottom:12px">
+        <label class="check"><input type="checkbox" id="al-enabled"> Bật cảnh báo</label>
+        <label class="check"><input type="checkbox" id="al-resolved"> Gửi tin khi cảnh báo hết</label>
+        <label>Nhắc lại sau (phút) <small>0 = không nhắc</small><input type="number" id="al-repeat" min="0"></label>
+      </div>
+      <div class="tscroll"><table class="rules">
+        <thead><tr><th>Đối tượng</th><th>Chỉ số</th><th>So sánh</th><th>Ngưỡng</th><th>Thời gian (s)</th><th>Mức</th><th>Site</th><th>Tên (VM / host / datastore)</th><th>Trừ tên</th><th></th></tr></thead>
+        <tbody id="rules"></tbody>
+      </table></div>
+      <div class="actions"><button id="rule-add">＋ Thêm rule</button><span class="spacer"></span><span class="msg" id="al-msg"></span><button class="primary" id="al-save">Lưu</button></div>
+    </div>
+  </section>
+
+  <!-- notify -->
+  <section class="tab" id="t-notify">
+    <div class="card-s">
+      <h3>Telegram</h3><p class="d">Tạo bot với @BotFather, thêm bot vào nhóm, lấy chat id qua <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>.</p>
+      <div class="form">
+        <label class="check full"><input type="checkbox" id="tg-enabled"> Bật Telegram</label>
+        <label>Bot token <input type="password" id="tg-token" autocomplete="off"></label>
+        <label>Chat id <small>nhiều id cách nhau dấu phẩy</small><input id="tg-chat"></label>
+      </div>
+    </div>
+    <div class="card-s">
+      <h3>Email (SMTP)</h3><p class="d">Cổng 465 (SSL) hoặc 587 (STARTTLS). Gmail cần App password.</p>
+      <div class="form">
+        <label class="check full"><input type="checkbox" id="em-enabled"> Bật Email</label>
+        <label>SMTP host <input id="em-host" placeholder="smtp.gmail.com"></label>
+        <label>Cổng <input type="number" id="em-port"></label>
+        <label class="check"><input type="checkbox" id="em-secure"> SSL (cổng 465)</label>
+        <label>Tài khoản SMTP <input id="em-user" autocomplete="off"></label>
+        <label>Mật khẩu SMTP <input type="password" id="em-pass" autocomplete="new-password"></label>
+        <label>Người gửi (From) <input id="em-from"></label>
+        <label>Tên người gửi <input id="em-fromname"></label>
+        <label class="full">Người nhận <small>cách nhau dấu phẩy</small><input id="em-to"></label>
+      </div>
+    </div>
+    <div class="card-s">
+      <h3>Webhook</h3>
+      <div class="form">
+        <label class="check full"><input type="checkbox" id="wh-enabled"> Bật Webhook</label>
+        <label>Định dạng <select id="wh-format"><option value="slack">Slack</option><option value="discord">Discord</option><option value="teams">Microsoft Teams</option><option value="json">JSON</option></select></label>
+        <label>URL <input type="password" id="wh-url" autocomplete="off"></label>
+      </div>
+    </div>
+    <div class="actions"><button id="nt-test">Gửi thử</button><span class="spacer"></span><span class="msg" id="nt-msg"></span><button class="primary" id="nt-save">Lưu</button></div>
+  </section>
+
+  <!-- influx -->
+  <section class="tab" id="t-influx">
+    <div class="card-s">
+      <h3>InfluxDB <span id="ix-status"></span></h3>
+      <p class="d">Ghi số liệu VM (<code>vm</code>), phân vùng (<code>vm_disk</code>) và cảnh báo (<code>vm_alert</code>) theo lô, nén gzip.</p>
+      <div class="form">
+        <label class="check full"><input type="checkbox" id="ix-enabled"> Bật ghi InfluxDB</label>
+        <label>Phiên bản <select id="ix-version"><option value="2">InfluxDB 2.x / 3.x (token)</option><option value="1">InfluxDB 1.x (database / user)</option></select></label>
+        <label class="full">URL <input id="ix-url" placeholder="http://influxdb:8086"></label>
+        <label class="v2">Organization <input id="ix-org"></label>
+        <label class="v2">Bucket <input id="ix-bucket"></label>
+        <label class="v2">Token <input type="password" id="ix-token" autocomplete="off"></label>
+        <label class="v1">Database <input id="ix-db"></label>
+        <label class="v1">User <input id="ix-user" autocomplete="off"></label>
+        <label class="v1">Mật khẩu <input type="password" id="ix-pass" autocomplete="new-password"></label>
+        <label class="full">Định dạng dữ liệu
+          <select id="ix-schema">
+            <option value="portal">Portal (vm, vm_host, vm_datastore, vm_disk, vm_alert)</option>
+            <option value="telegraf">Telegraf vSphere (vsphere_vm_cpu, vsphere_vm_virtualDisk, vsphere_host_*, vsphere_datastore_disk…)</option>
+            <option value="both">Cả hai</option>
+          </select>
+          <small>Chọn "Telegraf vSphere" để dùng lại query / dashboard Grafana đang viết cho Telegraf (tag vcenter, clustername, vmname, esxhostname, disk="instance-total"…).</small></label>
+        <label>Measurement <small>(định dạng Portal)</small><input id="ix-meas"></label>
+        <label>Gửi mỗi (giây) <input type="number" id="ix-batch" min="2"></label>
+        <label class="check"><input type="checkbox" id="ix-mounts"> Ghi từng phân vùng</label>
+        <label class="check"><input type="checkbox" id="ix-alerts"> Ghi sự kiện cảnh báo</label>
+      </div>
+      <div class="actions"><button id="ix-test">Kiểm tra kết nối</button><span class="spacer"></span><span class="msg" id="ix-msg"></span><button class="primary" id="ix-save">Lưu</button></div>
+    </div>
+  </section>
+
+  <!-- users -->
+  <section class="tab" id="t-users">
+    <div class="card-s">
+      <h3>Người dùng</h3><p class="d">Tài khoản đăng nhập dashboard. Khi có ít nhất một tài khoản, portal bắt buộc đăng nhập.
+        Mỗi người tự bật 2FA ở trang <a href="account">Tài khoản</a> (bấm tên ở góc phải). Bấm <b>Xem như</b> để mở portal đúng như người đó thấy (không cần mật khẩu của họ).</p>
+      <div class="tscroll"><table class="s" style="margin-bottom:8px"><thead><tr><th>Vai trò</th><th>Thấy gì</th></tr></thead><tbody>
+        <tr><td><b>Quản trị</b></td><td class="sm">Mọi thứ, kể cả Cài đặt</td></tr>
+        <tr><td><b>Nhân viên</b></td><td class="sm">Dashboard VM, host ESXi, datastore, báo cáo, Grafana — không vào Cài đặt. Có thể giới hạn chỉ một số site (khi đó ẩn Grafana và /metrics vì chứa mọi site).</td></tr>
+        <tr><td><b>Nhân viên phụ trách khách</b></td><td class="sm">Dashboard VM + báo cáo, nhưng chỉ VM của các khách được giao; không thấy host ESXi, datastore, Grafana.</td></tr>
+        <tr><td><b>Khách hàng</b></td><td class="sm">Trang riêng <i>Máy chủ của tôi</i>: VM, biểu đồ, cảnh báo, báo cáo tháng của mình; không thấy tên site, cluster, host, vCenter nội bộ.</td></tr>
+      </tbody></table></div>
+      <table class="s"><thead><tr><th>Tên đăng nhập</th><th>Vai trò</th><th>Phạm vi</th><th>2FA</th><th></th></tr></thead><tbody id="users"></tbody></table>
+      <div class="form" style="margin-top:14px">
+        <label>Tên đăng nhập <input id="u-name" autocomplete="off"></label>
+        <label>Vai trò <select id="u-role"><option value="admin">Quản trị — xem + cài đặt</option><option value="viewer">Nhân viên — xem, không cài đặt</option><option value="manager">Nhân viên phụ trách khách — chỉ khách được giao</option><option value="customer">Khách hàng — trang riêng, chỉ VM của mình</option></select></label>
+        <label>Mật khẩu <input type="password" id="u-pass" autocomplete="new-password" placeholder="ít nhất 8 ký tự"></label>
+        <label>Nhập lại mật khẩu <input type="password" id="u-pass2" autocomplete="new-password"></label>
+        <label class="full" id="u-sites-wrap" hidden>Chỉ xem các site <small>để trống = mọi site; nhiều site cách nhau dấu phẩy</small><input id="u-sites" list="u-site-list" placeholder="SITE-HN" autocomplete="off"><datalist id="u-site-list"></datalist></label>
+        <label class="full" id="u-cust-wrap" hidden><span id="u-cust-label">Thuộc khách hàng</span> <small>một hoặc nhiều tên khách, cách nhau dấu phẩy — đúng như tên trong danh sách khách hàng</small><input id="u-cust" list="u-cust-list" placeholder="KhachA, KhachB" autocomplete="off"><datalist id="u-cust-list"></datalist></label>
+      </div>
+      <div class="actions"><span class="msg" id="u-msg"></span><span class="spacer"></span><button class="primary" id="u-add">Tạo / đặt lại</button></div>
+    </div>
+    <div class="card-s">
+      <h3>Bảo mật</h3>
+      <p class="d">Bắt buộc xác thực 2 lớp: người chưa bật sẽ được chuyển tới trang bật 2FA ngay sau khi đăng nhập. HTTPS: mã hoá đường truyền khi mở portal ra ngoài (mật khẩu, cookie không bị đọc trộm trên mạng).</p>
+      <div class="form">
+        <label>Bắt buộc 2FA <select id="sec-2fa"><option value="none">Không bắt buộc (tự chọn)</option><option value="admin">Bắt buộc với admin</option><option value="all">Bắt buộc với mọi tài khoản</option></select></label>
+        <label class="check"><input type="checkbox" id="https-on"> Bật HTTPS</label>
+        <label>Cổng HTTPS <input type="number" id="https-port" min="1" max="65535" placeholder="3443"></label>
+        <label class="check"><input type="checkbox" id="https-redir"> Chuyển trình duyệt từ máy khác sang HTTPS</label>
+        <label class="full">File chứng chỉ .pfx <small>hoặc để trống và điền cặp cert + key bên dưới; đường dẫn tương đối với thư mục portal</small><input id="https-pfx" placeholder="certs\portal.pfx"></label>
+        <label>Mật khẩu file .pfx <small id="https-pp-st"></small><input type="password" id="https-pp" autocomplete="new-password" placeholder="để trống = giữ nguyên"></label>
+        <label>Chứng chỉ (.pem / .crt) <input id="https-cert" placeholder="certs\portal.crt"></label>
+        <label>Khoá riêng (.key) <input id="https-key" placeholder="certs\portal.key"></label>
+      </div>
+      <p class="d" style="margin:12px 0 0">Chưa có chứng chỉ? Chạy <code>powershell -File tools\make_cert.ps1</code> trên máy portal để tạo chứng chỉ tự ký (trình duyệt sẽ cảnh báo lần đầu), hoặc dùng chứng chỉ thật của công ty. Collector / Prometheus trên chính máy này vẫn dùng HTTP bình thường.</p>
+      <div class="actions"><span class="msg" id="sec-st" style="color:var(--muted)"></span><span class="spacer"></span><span class="msg" id="sec-msg"></span><button class="primary" id="sec-save">Lưu</button></div>
+    </div>
+    <div class="card-s">
+      <h3>API key</h3><p class="d">Cho hệ thống ngoài (Grafana, báo cáo: <b>read</b>), agent trên máy khách (<b>ingest</b>), collector chạy ở máy khác (<b>collector</b> — đọc được mật khẩu vCenter, giữ kỹ).</p>
+      <table class="s"><thead><tr><th>Tên</th><th>Vai trò</th><th>Key</th><th>Tạo lúc</th><th></th></tr></thead><tbody id="keys"></tbody></table>
+      <div class="form" style="margin-top:14px">
+        <label>Tên hệ thống <input id="k-name" placeholder="grafana"></label>
+        <label>Vai trò <select id="k-role"><option value="read">read</option><option value="ingest">ingest</option><option value="collector">collector</option><option value="admin">admin</option></select></label>
+      </div>
+      <div class="actions"><span class="msg" id="k-msg"></span><span class="spacer"></span><button class="primary" id="k-add">Tạo key</button></div>
+      <div id="k-new" hidden></div>
+    </div>
+  </section>
+
+  <!-- general -->
+  <section class="tab" id="t-ops">
+    <div class="card-s">
+      <h3>Dọn VM đã biến mất</h3>
+      <p class="d">VM / host / datastore không gửi số liệu quá số ngày này sẽ tự bị xoá khỏi portal (kiểm tra mỗi giờ) cùng lịch sử và cảnh báo của nó. VM tắt nguồn vẫn được collector báo về nên <b>không</b> bị xoá. Nếu một site mất kết nối lâu hơn số ngày này, VM của site đó cũng sẽ bị xoá và tự thêm lại khi kết nối lại (mất lịch sử).</p>
+      <div class="form"><label>Xoá sau (ngày) <small>0 = không tự xoá</small><input type="number" id="op-purge" min="0" max="365"></label></div>
+      <p class="d" style="margin:12px 0 6px">VM lâu nhất chưa gửi số liệu:</p>
+      <div class="tscroll" style="max-height:220px;overflow:auto"><table class="s"><thead><tr><th>VM</th><th>Gửi lần cuối</th><th>Số ngày</th></tr></thead><tbody id="op-stale"></tbody></table></div>
+      <div class="actions"><span class="msg" id="op-purge-last" style="color:var(--muted)"></span><span class="spacer"></span><span class="msg" id="op-purge-msg"></span><button id="op-purge-now">Dọn ngay</button><button class="primary" id="op-purge-save">Lưu</button></div>
+    </div>
+    <div class="card-s">
+      <h3>Sao lưu tự động <span class="st" id="op-bk-st"></span></h3>
+      <p class="d">Mỗi ngày nén <code>config.json</code> và các file trong <code>data/</code> (lịch sử, host, datastore, báo cáo, trạng thái cảnh báo, mật khẩu đã mã hoá + khoá) vào thư mục sao lưu. Bản sao lưu chứa khoá giải mã mật khẩu vCenter: <b>cất giữ cẩn thận</b>, nên chép thêm ra máy khác.</p>
+      <div class="form">
+        <label class="check"><input type="checkbox" id="op-bk-on"> Bật sao lưu hằng ngày</label>
+        <label>Chạy sau (giờ trong ngày) <input type="number" id="op-bk-hour" min="0" max="23"></label>
+        <label>Giữ (ngày) <input type="number" id="op-bk-keep" min="1" max="365"></label>
+        <label class="full">Thư mục <small>tương đối với thư mục portal, hoặc đường dẫn đầy đủ (vd ổ mạng \nas\backup\vm-monitor)</small><input id="op-bk-dir" placeholder="backups"></label>
+      </div>
+      <div class="tscroll" style="max-height:200px;overflow:auto;margin-top:12px"><table class="s"><thead><tr><th>Bản sao lưu</th><th>Dung lượng</th></tr></thead><tbody id="op-bk-list"></tbody></table></div>
+      <div class="actions"><span class="msg" id="op-bk-last" style="color:var(--muted)"></span><span class="spacer"></span><span class="msg" id="op-bk-msg"></span><button id="op-bk-now">Sao lưu ngay</button><button class="primary" id="op-bk-save">Lưu</button></div>
+    </div>
+    <div class="card-s">
+      <h3>Báo cáo tháng theo khách hàng <span class="st" id="op-rp-st"></span></h3>
+      <p class="d">Đầu mỗi tháng gửi email báo cáo tháng trước: bảng theo khách hàng (số VM, vCPU, RAM, CPU / RAM trung bình và đỉnh, disk, network, giờ chạy) kèm file CSV. Dùng SMTP ở tab <b>Kênh gửi → Email</b>. Xem / in / tải báo cáo bất kỳ lúc nào ở trang <a href="report" target="_blank">Báo cáo</a>.</p>
+      <div class="form">
+        <label class="check"><input type="checkbox" id="op-rp-on"> Tự gửi hằng tháng</label>
+        <label>Ngày gửi trong tháng <input type="number" id="op-rp-day" min="1" max="28"></label>
+        <label>Giờ gửi <input type="number" id="op-rp-hour" min="0" max="23"></label>
+        <label class="check"><input type="checkbox" id="op-rp-vm"> Đính kèm chi tiết từng VM</label>
+        <label class="full">Gửi tới <small>cách nhau dấu phẩy; để trống = người nhận ở kênh Email</small><input id="op-rp-to" placeholder="noc@company.vn, sale@company.vn"></label>
+      </div>
+      <div class="actions"><span class="msg" id="op-rp-last" style="color:var(--muted)"></span><span class="spacer"></span><span class="msg" id="op-rp-msg"></span>
+        <select id="op-rp-month" aria-label="Tháng"></select><button id="op-rp-send">Gửi thử ngay</button><button class="primary" id="op-rp-save">Lưu</button></div>
+    </div>
+  </section>
+
+  <section class="tab" id="t-audit">
+    <div class="card-s">
+      <h3>Nhật ký thao tác</h3>
+      <p class="d">Ai đăng nhập, đổi cấu hình, gán khách, xoá VM, tạo / thu hồi key… lúc nào, từ IP nào. Mật khẩu, token, mã 2FA không bao giờ được ghi. Lưu ở <code>data/audit.log</code> (xoay vòng 5 MB × 5 file).</p>
+      <div class="actions" style="margin-top:0">
+        <input id="au-q" type="search" placeholder="Tìm (tên VM, khách, IP, thao tác…)" style="min-width:260px">
+        <select id="au-user"><option value="">Mọi người dùng</option></select>
+        <label class="check" style="font-size:12.5px"><input type="checkbox" id="au-failed"> Chỉ thao tác lỗi / đăng nhập sai</label>
+        <span class="spacer"></span><span class="msg" id="au-msg" style="color:var(--muted)"></span><button id="au-reload">Làm mới</button>
+      </div>
+      <div class="tscroll" style="max-height:620px;overflow:auto;margin-top:10px"><table class="s"><thead><tr><th>Thời gian</th><th>Người dùng</th><th>Thao tác</th><th>Chi tiết</th><th>IP</th><th>Kết quả</th></tr></thead><tbody id="au-rows"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="tab" id="t-general">
+    <div class="card-s">
+      <h3>Chung</h3>
+      <div class="form">
+        <label class="full">Địa chỉ portal <small>dùng cho link trong tin cảnh báo</small><input id="g-url" placeholder="https://monitor.company.vn"></label>
+        <label class="full">Địa chỉ Grafana <small>link "Grafana" trên menu; để trống = cùng máy, cổng 3001</small><input id="g-grafana" placeholder="http://10.0.0.5:3001"></label>
+        <label>Giữ lịch sử (ngày) <small>có hiệu lực sau khi khởi động lại portal</small><input type="number" id="g-ret" min="1"></label>
+        <label>Coi là mất kết nối sau (giây) <input type="number" id="g-off" min="20"></label>
+        <label>Site mặc định cho agent <input id="g-site" placeholder="default"></label>
+        <label class="full">CORS <small>domain được gọi API từ trình duyệt, cách nhau dấu phẩy</small><input id="g-cors"></label>
+        <label class="check"><input type="checkbox" id="g-metrics"> /metrics (Prometheus) không cần API key</label>
+      </div>
+      <div class="actions"><span class="spacer"></span><span class="msg" id="g-msg"></span><button class="primary" id="g-save">Lưu</button></div>
+    </div>
+  </section>
+</main>
+
+<dialog id="vc-dlg">
+  <form method="dialog" id="vc-form">
+    <header><h3 id="vc-title">Thêm vCenter</h3><button type="button" class="ghost" data-close>✕</button></header>
+    <div class="body">
+      <div class="form">
+        <label class="full">Chạy bởi collector <small>collector phải nằm cùng mạng, kết nối được tới vCenter này</small><select name="collector" id="vc-collector"></select></label>
+        <label>Địa chỉ vCenter hoặc host ESXi <input name="host" required placeholder="10.20.0.10 hoặc vcenter.company.vn"></label>
+        <label>Cổng <input name="port" type="number" value="443"></label>
+        <label>Tài khoản <small>vCenter: monitor@vsphere.local · ESXi: root hoặc user chỉ đọc</small><input name="user" required placeholder="monitor@vsphere.local" autocomplete="off"></label>
+        <label>Mật khẩu <small id="pw-hint"></small><input name="password" type="password" autocomplete="new-password"></label>
+        <label>Site <small>"auto" = tên Datacenter; host ESXi đứng riêng nên đặt tên, vd HN</small><input name="site" value="auto"></label>
+        <label>Lấy số liệu mỗi (giây) <small>tối thiểu 20</small><input name="interval" type="number" value="20" min="20"></label>
+        <label>Chỉ lấy VM <small>tên, hỗ trợ *, cách nhau dấu phẩy</small><input name="include" value="*"></label>
+        <label>Bỏ qua VM <input name="exclude" value="vCLS-*"></label>
+        <label>Tiền tố tên VM <small>khi nhiều vCenter trùng tên VM</small><input name="prefix"></label>
+        <label class="check"><input type="checkbox" name="insecure" checked> Chấp nhận chứng chỉ tự ký</label>
+        <label class="check"><input type="checkbox" name="sendPoweredOff" checked> Hiện cả VM tắt nguồn</label>
+        <label class="check"><input type="checkbox" name="enabled" checked> Bật</label>
+      </div>
+      <fieldset>
+        <legend>Đọc Disk + RAM bên trong VM (Guest Operations)</legend>
+        <p style="margin:0 0 10px;color:var(--muted);font-size:12.5px">Chỉ cho VM Linux bạn quản lý. Cần tài khoản đăng nhập trong VM và quyền Guest operations trên vCenter. Ubuntu 22.04+ có thể cần <code>chpasswd -c SHA512</code> cho tài khoản này.</p>
+        <div class="form">
+          <label class="check full"><input type="checkbox" name="g_enabled"> Bật đọc trong VM</label>
+          <label>Tài khoản trong VM <input name="g_user" value="root" autocomplete="off"></label>
+          <label>Mật khẩu tài khoản trong VM <small id="gpw-hint"></small><input name="g_password" type="password" autocomplete="new-password"></label>
+          <label class="full">Chỉ các VM <small>bắt buộc, tên chính xác hoặc mẫu *, cách nhau dấu phẩy</small><input name="g_include" placeholder="monitor-vm-01, internal-*"></label>
+          <label>Đọc mỗi (giây) <input name="g_interval" type="number" value="60" min="30"></label>
+        </div>
+      </fieldset>
+    </div>
+    <footer><span class="msg" id="vc-msg"></span><span class="spacer"></span><button type="button" data-close>Huỷ</button><button class="primary" type="submit" id="vc-save">Lưu</button></footer>
+  </form>
+</dialog>
+<dialog id="col-dlg">
+  <form method="dialog" id="col-form">
+    <header><h3>Thêm collector cho site ở xa</h3><button type="button" class="ghost" data-close-col>✕</button></header>
+    <div class="body">
+      <div id="col-step1">
+        <div class="form">
+          <label class="full">Tên collector <small>chỉ chữ, số, - _ ; ví dụ collector-HN</small><input name="colname" required pattern="[A-Za-z0-9_\-]{2,40}" placeholder="collector-HN"></label>
+        </div>
+      </div>
+      <div id="col-step2" hidden></div>
+    </div>
+    <footer><span class="msg" id="col-msg"></span><span class="spacer"></span><button type="button" data-close-col>Đóng</button><button class="primary" type="submit" id="col-create">Tạo</button></footer>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+<script src="settings.js"></script>
+</body>
+</html>

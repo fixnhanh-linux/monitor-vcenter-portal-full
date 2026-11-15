@@ -1,0 +1,19 @@
+# (Tuỳ chọn) Tự tạo datasource khi Grafana khởi động.
+# Copy vào /etc/grafana/provisioning/datasources/ rồi khởi động lại Grafana.
+apiVersion: 1
+datasources:
+  # Cách 1: Prometheus đang scrape portal
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://IP_PROMETHEUS:9090
+    isDefault: true
+
+  # Cách 2: InfluxDB 2.x mà portal đang ghi vào (Cài đặt -> InfluxDB)
+  # - name: InfluxDB VM Monitor
+  #   type: influxdb
+  #   access: proxy
+  #   url: http://IP_INFLUXDB:8086
+  #   jsonData: { version: Flux, organization: my-org, defaultBucket: vm-monitor }
+  #   secureJsonData: { token: "<token chỉ đọc bucket vm-monitor>" }

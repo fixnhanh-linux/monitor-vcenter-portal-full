@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  main { max-width: 1080px; }
+  .intro { margin-bottom: 18px; padding: 16px 18px; }
+  .intro p { margin: 6px 0; white-space: pre-line; }
+  .keybar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .keybar input { flex: 1; min-width: 240px; font-family: ui-monospace, Consolas, monospace; }
+  h2.tag { font-size: 15px; margin: 26px 0 10px; }
+  details.ep { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+  details.ep > summary { display: flex; gap: 10px; align-items: center; padding: 9px 12px; cursor: pointer; list-style: none; }
+  details.ep > summary::-webkit-details-marker { display: none; }
+  .m { font-size: 11px; font-weight: 700; padding: 3px 0; border-radius: 6px; width: 62px; text-align: center; color: #fff; flex: none; }
+  .m.get { background: #1f8f5a; } .m.post { background: #2f6fed; } .m.delete { background: #d63c3c; }
+  .path { font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-wrap: anywhere; }
+  .sum { color: var(--muted); margin-left: auto; font-size: 13px; text-align: right; }
+  .epb { padding: 4px 14px 14px; border-top: 1px solid var(--border); }
+  .epb table { margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .epb td, .epb th { font-size: 12.5px; }
+  pre { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; font-size: 12px; margin: 8px 0; max-height: 360px; font-family: ui-monospace, Consolas, monospace; }
+  .try { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .try input { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .status { font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  @media (max-width: 720px) { .sum { display: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span> VM Monitor API <span class="role">v1</span></h1>
+  <div class="spacer"></div>
+  <nav class="links"><a href="./">← Dashboard</a><a href="api/v1/openapi.json" target="_blank" rel="noopener">openapi.json</a></nav>
+</header>
+<main>
+  <section class="panel intro" id="intro">Đang tải…</section>
+  <div id="eps"></div>
+</main>
+<script>
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const base = location.origin + location.pathname.replace(/docs\/?$/, '').replace(/\/$/, '');
+let key = ''; try { key = sessionStorage.getItem('vm-api-key') || ''; } catch {}
+
+fetch('api/v1/openapi.json').then((r) => r.json()).then((spec) => {
+  document.getElementById('intro').innerHTML = `<h2 style="margin:0;font-size:16px">${esc(spec.info.title)}</h2>
+    <p>${esc(spec.info.description).replace(/`([^`]+)`/g, '<code>$1</code>')}</p>
+    <p>Base URL: <code>${esc(base)}</code></p>
+    <div class="keybar"><label for="k"><b>API key</b></label><input id="k" placeholder="vmk_… (để trống nếu đã đăng nhập dashboard)" value="${esc(key)}" autocomplete="off">
+    <span class="muted" style="font-size:12px">Chỉ lưu trong tab này để gọi thử.</span></div>`;
+  document.getElementById('k').oninput = (e) => { key = e.target.value.trim(); try { sessionStorage.setItem('vm-api-key', key); } catch {} renderCurls(); };
+
+  const byTag = new Map();
+  for (const [p, ops] of Object.entries(spec.paths)) for (const [m, op] of Object.entries(ops)) {
+    const t = (op.tags || ['Khác'])[0]; if (!byTag.has(t)) byTag.set(t, []); byTag.get(t).push({ p, m, op });
+  }
+  let html = '';
+  for (const [tag, eps] of byTag) {
+    html += `<h2 class="tag">${esc(tag)}</h2>`;
+    for (const { p, m, op } of eps) {
+      const params = op.parameters || [];
+      const example = op.requestBody?.content?.['application/json']?.example;
+      const sample = p.replace('{site}', 'HCM').replace('{name}', 'web-01');
+      const query = params.filter((x) => x.in === 'query' && x.schema?.default !== undefined).map((x) => `${x.name}=${x.schema.default}`).join('&');
+      html += `<details class="ep"><summary><span class="m ${m}">${m.toUpperCase()}</span><span class="path">${esc(p)}</span><span class="sum">${esc(op.summary)}</span></summary><div class="epb">
+        ${op.description ? `<p>${esc(op.description)}</p>` : ''}
+        ${params.length ? `<table><thead><tr><th>Tham số</th><th>Vị trí</th><th>Mô tả</th></tr></thead><tbody>${params.map((x) => `<tr><td><code>${esc(x.name)}</code>${x.required ? ' *' : ''}</td><td>${x.in}</td><td>${esc(x.description || '')}${x.schema?.default !== undefined ? ` <span class="muted">(mặc định ${esc(x.schema.default)})</span>` : ''}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${example ? `<b>Body mẫu</b><pre>${esc(JSON.stringify(example, null, 2))}</pre>` : ''}
+        <b>curl</b><pre class="curl" data-m="${m}" data-p="${esc(sample)}" data-body="${example ? esc(JSON.stringify(example)) : ''}"></pre>
+        ${m === 'get' ? `<div class="try"><input size="50" value="${esc(sample + (query ? '?' + query : ''))}"><button class="run">Gọi thử</button><span class="status"></span></div><pre class="out" hidden></pre>` : ''}
+      </div></details>`;
+    }
+  }
+  document.getElementById('eps').innerHTML = html;
+  renderCurls();
+  document.getElementById('eps').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.run'); if (!btn) return;
+    const box = btn.closest('.epb'), path = box.querySelector('.try input').value, out = box.querySelector('.out'), st = box.querySelector('.status');
+    st.textContent = 'Đang gọi…';
+    const t0 = performance.now();
+    try {
+      const r = await fetch(path.replace(/^\//, ''), { headers: key ? { 'x-api-key': key } : {} });
+      const text = await r.text();
+      let body = text; try { body = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+      st.textContent = `HTTP ${r.status} · ${Math.round(performance.now() - t0)} ms · ${(text.length / 1024).toFixed(1)} KB`;
+      out.hidden = false; out.textContent = body.length > 60000 ? body.slice(0, 60000) + '\n… (đã cắt bớt)' : body;
+    } catch (err) { st.textContent = 'Lỗi: ' + err.message; }
+  });
+});
+function renderCurls() {
+  document.querySelectorAll('pre.curl').forEach((el) => {
+    const m = el.dataset.m, body = el.dataset.body;
+    el.textContent = `curl${m !== 'get' ? ' -X ' + m.toUpperCase() : ''} "${base}${el.dataset.p}" \\\n  -H "X-API-Key: ${key || '<API_KEY>'}"`
+      + (body ? ` \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'` : '');
+  });
+}
+</script>
+</body>
+</html>

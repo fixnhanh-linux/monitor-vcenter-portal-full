@@ -1,0 +1,20 @@
+# build
+target/
+**/__pycache__/
+*.tar
+
+# dữ liệu chạy thật / mật khẩu — KHÔNG đưa lên git
+deploy/portal-data/
+deploy/demo/data/
+deploy/demo/backups/
+agent-docker/data/
+**/.env
+!**/.env.example
+grafana/stack/prometheus/portal_api_key.txt
+certs/
+*.pfx
+*.key
+*.pem
+config.local.json
+
+deploy/demo/config.json

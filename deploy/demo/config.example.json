@@ -1,0 +1,70 @@
+{
+  "retentionDays": 7,
+  "offlineAfterSeconds": 60,
+  "customers": {
+    "sources": [
+      {
+        "type": "manual",
+        "enabled": true
+      },
+      {
+        "type": "rules",
+        "enabled": true
+      },
+      {
+        "type": "name",
+        "enabled": true,
+        "regex": "^([A-Za-z][A-Za-z0-9]*)_\\d{5,}"
+      }
+    ],
+    "rules": [],
+    "manual": {}
+  },
+  "alerts": {
+    "enabled": true,
+    "repeatMinutes": 60,
+    "sendResolved": true,
+    "rules": [
+      {
+        "metric": "cpu",
+        "threshold": 90,
+        "for": 120,
+        "severity": "critical"
+      },
+      {
+        "metric": "mem",
+        "threshold": 90,
+        "for": 120,
+        "severity": "critical"
+      },
+      {
+        "metric": "disk",
+        "threshold": 90,
+        "for": 0,
+        "severity": "warning"
+      },
+      {
+        "metric": "offline",
+        "for": 60,
+        "severity": "critical"
+      },
+      {
+        "target": "host",
+        "metric": "cpu",
+        "threshold": 90,
+        "for": 300,
+        "severity": "warning"
+      },
+      {
+        "target": "datastore",
+        "metric": "disk",
+        "threshold": 85,
+        "for": 0,
+        "severity": "warning"
+      }
+    ]
+  },
+  "vcenters": [],
+  "apiKeys": [],
+  "users": []
+}

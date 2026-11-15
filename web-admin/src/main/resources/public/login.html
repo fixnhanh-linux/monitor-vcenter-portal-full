@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đăng nhập · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  body { min-height: 100vh; margin: 0; display: grid; grid-template-columns: 1.1fr 1fr; }
+  .side { position: relative; overflow: hidden; padding: 48px 56px; display: flex; flex-direction: column; justify-content: space-between; color: #fff;
+          background: linear-gradient(150deg, #1d4fd8 0%, #2f6fed 45%, #6a4fd8 100%); }
+  .side::after { content: ""; position: absolute; inset: auto -120px -160px auto; width: 480px; height: 480px; border-radius: 50%;
+                 background: radial-gradient(circle, rgba(255,255,255,.18), transparent 65%); }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; }
+  .brand .logo { background: #fff; color: #2f6fed; }
+  .side h2 { font-size: 30px; line-height: 1.25; margin: 0 0 14px; font-weight: 700; max-width: 440px; }
+  .side p { margin: 0; opacity: .85; font-size: 14.5px; max-width: 430px; line-height: 1.6; }
+  .feats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 460px; margin-top: 30px; position: relative; z-index: 1; }
+  .feat { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+  .feat b { display: block; font-size: 14px; margin-bottom: 2px; }
+  .side small { opacity: .7; font-size: 12px; position: relative; z-index: 1; }
+  .main { display: grid; place-items: center; padding: 32px 16px; background: var(--bg); }
+  .box { width: min(380px, 100%); }
+  .box h1 { font-size: 22px; margin: 0 0 6px; }
+  .box > p { color: var(--muted); margin: 0 0 22px; font-size: 13.5px; }
+  label { display: block; font-size: 12.5px; font-weight: 600; margin: 14px 0 6px; }
+  .field { position: relative; }
+  input { width: 100%; padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+  .eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted); padding: 4px 8px; cursor: pointer; font-size: 12px; }
+  button.primary { width: 100%; margin-top: 20px; padding: 11px; font-weight: 600; font-size: 14px; }
+  .err { color: var(--crit); font-size: 13px; min-height: 18px; margin-top: 12px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .banner { background: color-mix(in srgb, var(--warn) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+            border-radius: 10px; padding: 10px 12px; font-size: 12.5px; margin-bottom: 4px; line-height: 1.5; }
+  .skip { display: block; text-align: center; margin-top: 14px; font-size: 13px; }
+  .caps { color: var(--warn); font-size: 12px; margin-top: 6px; }
+  .mobile-brand { display: none; }
+  .switch { display: block; text-align: center; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  /* cổng khách hàng: màu khác, không nhắc tới hạ tầng nội bộ */
+  body.cust .side { background: linear-gradient(150deg, #0f766e 0%, #0d9488 50%, #0891b2 100%); }
+  body.cust .brand .logo { color: #0d9488; }
+  body.cust button.primary { background: #0d9488; border-color: #0d9488; }
+  body.cust .mobile-brand .logo { background: #0d9488; }
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,.18); border-radius: 99px; padding: 3px 10px; margin-bottom: 14px; }
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .mobile-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; margin-bottom: 26px; }
+  }
+</style>
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><span class="logo">VM</span> VM Monitor</div>
+  <div id="side-staff">
+    <span class="tag">Dành cho nhân viên</span>
+    <h2>Giám sát VM trên mọi site vCenter, theo thời gian thực</h2>
+    <p>CPU, RAM, network, disk của từng VM, host ESXi và datastore; cảnh báo qua Telegram / email / webhook; lọc theo khách hàng.</p>
+    <div class="feats">
+      <div class="feat"><b>Realtime</b>Số liệu cập nhật liên tục, không cần tải lại trang</div>
+      <div class="feat"><b>Nhiều site</b>Collector đặt tại từng site, gửi về một portal</div>
+      <div class="feat"><b>Cảnh báo</b>Rule cho VM, host, datastore</div>
+      <div class="feat"><b>Tích hợp</b>API, Prometheus / Grafana, InfluxDB</div>
+    </div>
+  </div>
+  <div id="side-cust" hidden>
+    <span class="tag">Cổng khách hàng</span>
+    <h2>Theo dõi máy chủ của bạn mọi lúc, mọi nơi</h2>
+    <p>Xem tình trạng, mức dùng CPU, RAM, ổ đĩa, network của từng máy chủ ảo; nhận cảnh báo và báo cáo hằng tháng.</p>
+    <div class="feats">
+      <div class="feat"><b>Thời gian thực</b>Số liệu cập nhật liên tục</div>
+      <div class="feat"><b>Cảnh báo</b>Biết ngay khi máy chủ quá tải hay đầy ổ đĩa</div>
+      <div class="feat"><b>Báo cáo tháng</b>Mức dùng theo tháng, tải CSV / PDF</div>
+      <div class="feat"><b>Bảo mật</b>Hỗ trợ xác thực 2 lớp</div>
+    </div>
+  </div>
+  <small id="ver">VM Monitor Portal</small>
+</aside>
+
+<main class="main">
+  <form class="box" id="f" autocomplete="on">
+    <div class="mobile-brand"><span class="logo">VM</span> <span id="mb-name">VM Monitor</span></div>
+
+    <div id="login-head">
+      <h1>Đăng nhập nhân viên</h1>
+      <p>Dành cho nhân viên vận hành. Khách hàng vui lòng dùng cổng khách hàng.</p>
+    </div>
+    <div id="setup-head" hidden>
+      <h1>Tạo tài khoản quản trị</h1>
+      <p>Portal chưa có tài khoản nào. Tạo tài khoản <b>admin</b> đầu tiên để bật đăng nhập; sau đó mọi người phải đăng nhập mới xem được.</p>
+      <div class="banner">Ai mở được trang này đều tạo được tài khoản đầu tiên, nên hãy tạo ngay. Thêm tài khoản khác ở <b>Cài đặt → Người dùng &amp; API key</b>.</div>
+    </div>
+
+    <div id="cred">
+    <label for="u">Tên đăng nhập</label>
+    <input id="u" name="username" autocomplete="username" required autofocus spellcheck="false" autocapitalize="off">
+
+    <label for="p">Mật khẩu</label>
+    <div class="field">
+      <input id="p" name="password" type="password" autocomplete="current-password" required>
+      <button type="button" class="eye" data-for="p">Hiện</button>
+    </div>
+    <div class="caps" id="caps" hidden>Đang bật Caps Lock</div>
+    </div>
+
+    <div id="otp" hidden>
+      <div class="banner" style="background:color-mix(in srgb, var(--accent) 10%, transparent);border-color:color-mix(in srgb, var(--accent) 35%, transparent)">
+        Tài khoản <b id="otp-user"></b> đã bật <b>xác thực 2 lớp</b>. Mở app Authenticator trên điện thoại và nhập mã 6 số.</div>
+      <label for="code" id="code-label">Mã xác thực</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" style="font-size:22px;letter-spacing:.35em;text-align:center">
+      <div class="hint"><a href="#" id="use-rec">Mất điện thoại? Dùng mã khôi phục</a> · <a href="#" id="otp-back">← Đăng nhập tài khoản khác</a></div>
+    </div>
+
+    <div id="setup-fields" hidden>
+      <div class="hint">Ít nhất 8 ký tự. Nên gõ bằng bàn phím tiếng Anh (tắt Unikey) để tránh sai ký tự.</div>
+      <label for="p2">Nhập lại mật khẩu</label>
+      <div class="field">
+        <input id="p2" type="password" autocomplete="new-password">
+        <button type="button" class="eye" data-for="p2">Hiện</button>
+      </div>
+    </div>
+
+    <button class="primary" type="submit" id="b">Đăng nhập</button>
+    <div class="err" id="e" role="alert"></div>
+    <a class="skip" id="skip" href="./" hidden>Để sau, vào dashboard →</a>
+    <a class="switch" id="switch" href="khach-hang">Bạn là khách hàng? <b>Vào cổng khách hàng →</b></a>
+  </form>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const next = new URLSearchParams(location.search).get('next') || '';
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '';
+  const CUST = /khach-hang/.test(location.pathname); // cổng khách hàng
+  let setup = false;
+  if (CUST) {
+    document.body.classList.add('cust');
+    $('side-staff').hidden = true; $('side-cust').hidden = false;
+    document.querySelector('#login-head h1').textContent = 'Cổng khách hàng';
+    document.querySelector('#login-head p').textContent = 'Đăng nhập bằng tài khoản được cung cấp để xem máy chủ của bạn.';
+    $('mb-name').textContent = 'Cổng khách hàng';
+    $('switch').href = 'login'; $('switch').innerHTML = 'Nhân viên nội bộ? <b>Đăng nhập tại đây →</b>';
+    document.title = 'Cổng khách hàng · VM Monitor';
+  }
+  // đăng nhập xong đi đâu: khách -> trang khách; admin -> dashboard; nhân viên -> Việc của tôi
+  const CUST_PAGES = /^\/(my|report|account)\b/;
+  function dest(role) {
+    if (role === 'customer') return CUST_PAGES.test(safeNext) ? safeNext : 'my';
+    if (safeNext && safeNext !== '/' && safeNext !== '/my') return safeNext;
+    return role === 'admin' ? './' : 'home';
+  }
+
+  function setMode(isSetup) {
+    setup = isSetup;
+    $('login-head').hidden = isSetup; $('setup-head').hidden = !isSetup;
+    $('setup-fields').hidden = !isSetup; $('skip').hidden = !isSetup; $('switch').hidden = isSetup;
+    $('p2').required = isSetup;
+    $('p').autocomplete = isSetup ? 'new-password' : 'current-password';
+    $('b').textContent = isSetup ? 'Tạo tài khoản và đăng nhập' : 'Đăng nhập';
+    document.title = (isSetup ? 'Tạo tài khoản' : 'Đăng nhập') + ' · VM Monitor';
+    if (isSetup && !$('u').value) $('u').value = 'admin';
+  }
+
+  fetch('api/v1/me').then((r) => r.json().then((d) => {
+    if (!d.loginRequired) return CUST ? location.replace('login') : setMode(true); // chưa có tài khoản: hiện form tạo admin đầu tiên
+    if (d.enroll) return location.replace('account?enroll=1'); // đăng nhập rồi nhưng phải bật 2FA
+    if (r.ok) location.replace(dest(d.role));       // đã đăng nhập
+  })).catch(() => { $('e').textContent = 'Không kết nối được tới portal'; });
+
+  document.querySelectorAll('.eye').forEach((b) => b.onclick = () => {
+    const i = $(b.dataset.for); const show = i.type === 'password';
+    i.type = show ? 'text' : 'password'; b.textContent = show ? 'Ẩn' : 'Hiện';
+  });
+  for (const id of ['p', 'p2']) $(id).addEventListener('keyup', (ev) => { $('caps').hidden = !ev.getModifierState?.('CapsLock'); });
+
+  // ---- bước 2: mã xác thực 2 lớp ----
+  let ticket = null, recMode = false;
+  function showOtp(t) {
+    ticket = t; recMode = false;
+    $('cred').hidden = true; $('otp').hidden = false; $('login-head').hidden = true;
+    $('u').required = $('p').required = false;
+    $('otp-user').textContent = $('u').value.trim();
+    $('b').textContent = 'Xác nhận';
+    setRec(false); $('code').focus();
+  }
+  function setRec(on) {
+    recMode = on; $('code').value = '';
+    $('code').maxLength = on ? 12 : 6; $('code').inputMode = on ? 'text' : 'numeric';
+    $('code').placeholder = on ? 'xxxx-xxxx' : '123456'; $('code').style.letterSpacing = on ? '.1em' : '.35em';
+    $('code-label').textContent = on ? 'Mã khôi phục (mỗi mã dùng được 1 lần)' : 'Mã xác thực';
+    $('use-rec').textContent = on ? 'Dùng mã trong app Authenticator' : 'Mất điện thoại? Dùng mã khôi phục';
+  }
+  $('use-rec').onclick = (ev) => { ev.preventDefault(); setRec(!recMode); $('code').focus(); };
+  $('otp-back').onclick = (ev) => { ev.preventDefault(); location.reload(); };
+  $('code').addEventListener('input', () => { if (!recMode && /^\d{6}$/.test($('code').value)) $('f').requestSubmit(); });
+  const go = (d) => {
+    if (d.recovery) sessionStorage.setItem('vm-recovery-used', String(d.recoveryLeft ?? ''));
+    location.replace(d.enroll ? 'account?enroll=1' : d.recovery ? 'account?recovery=1' : dest(d.user?.role));
+  };
+
+  $('f').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const b = $('b'), e = $('e');
+    e.textContent = '';
+    if (ticket) {
+      b.disabled = true;
+      try {
+        const r = await fetch('api/v1/login/2fa', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket, code: $('code').value.trim() }) });
+        const d = await r.json().catch(() => ({}));
+        if (r.ok) return go(d);
+        e.textContent = d.error || 'Mã không đúng';
+        if (d.restart) setTimeout(() => location.reload(), 1500);
+        $('code').select();
+      } catch { e.textContent = 'Không kết nối được tới portal'; }
+      b.disabled = false;
+      return;
+    }
+    const username = $('u').value.trim(), password = $('p').value;
+    if (setup) {
+      if (password.length < 8) { e.textContent = 'Mật khẩu cần ít nhất 8 ký tự'; return; }
+      if (password !== $('p2').value) { e.textContent = 'Hai lần nhập mật khẩu không khớp'; return; }
+    }
+    b.disabled = true;
+    try {
+      const r = await fetch(setup ? 'api/v1/setup' : 'api/v1/login', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ username, password }) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.need2fa) { b.disabled = false; return showOtp(d.ticket); }
+      if (r.ok) return go(d);
+      e.textContent = d.error || 'Đăng nhập thất bại';
+      if (r.status === 409) setMode(false);         // người khác vừa tạo tài khoản
+    } catch { e.textContent = 'Không kết nối được tới portal'; }
+    b.disabled = false;
+  };
+</script>
+</body>
+</html>

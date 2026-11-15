@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Host ESXi · VM Monitor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232f6fed'/><path d='M7 20l5-6 4 4 5-8 4 5' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="stylesheet" href="app.css">
+<style>
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a.on { background: var(--panel-2); color: var(--accent); }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .st { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .st.ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .st.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .st.err { background: color-mix(in srgb, var(--crit) 16%, transparent); color: var(--crit); }
+  .st.off { background: var(--panel-2); color: var(--muted); }
+  .health { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: middle; }
+  .health.green { background: var(--ok); } .health.yellow { background: var(--warn); } .health.red { background: var(--crit); } .health.gray { background: var(--off); }
+  .htable { min-width: 1150px; }
+  .htable td.sub { color: var(--muted); font-size: 12px; }
+  .cell2 { display: grid; gap: 3px; min-width: 120px; }
+  .cell2 small { color: var(--muted); font-size: 11.5px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs"><a href="home">Việc của tôi</a><a href="./">VM</a><a href="hosts" class="on">Host ESXi &amp; Datastore</a><a href="report">Báo cáo</a><a id="grafana-link" target="_blank" rel="noopener" title="Mở dashboard Grafana">Grafana ↗</a></nav>
+  <div class="spacer"></div>
+  <nav class="links"><a href="settings" id="settings-link" hidden>⚙ Cài đặt</a><a href="docs" target="_blank" rel="noopener">API</a></nav>
+</header>
+<main>
+  <section class="sites" id="sites"></section>
+  <section class="stats" id="stats"></section>
+
+  <section class="toolbar">
+    <div class="seg" id="kind"><button data-v="hosts" class="on">Host ESXi <b id="c-hosts"></b></button><button data-v="ds">Datastore <b id="c-ds"></b></button></div>
+    <div class="seg" id="status"><button data-v="" class="on">Tất cả</button><button data-v="problem">Có vấn đề <b id="c-problem"></b></button></div>
+    <input id="q" type="search" placeholder="Tìm host, cluster, model, datastore…" autocomplete="off">
+    <select id="sort" aria-label="Sắp xếp"></select>
+  </section>
+
+  <section class="panel" id="hostwrap"><div class="tscroll"><table class="vmtable htable">
+    <thead><tr><th>Host</th><th>Site / Cluster</th><th>Trạng thái</th><th>CPU</th><th>RAM</th><th>VM</th><th>Network ↓ / ↑</th><th>Phần cứng</th><th>Phiên bản</th><th>Uptime</th></tr></thead>
+    <tbody id="hrows"></tbody></table></div></section>
+  <section class="panel" id="dswrap" hidden><div class="tscroll"><table class="vmtable htable">
+    <thead><tr><th>Datastore</th><th>Site</th><th>Loại</th><th>Đã dùng</th><th>Dung lượng</th><th>Còn trống</th><th>Đã cấp phát</th><th>Host</th><th>VM</th><th>Trạng thái</th></tr></thead>
+    <tbody id="drows"></tbody></table></div></section>
+  <div class="empty" id="empty" hidden></div>
+</main>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <header class="top">
+    <h1 id="d-title">—</h1><div id="d-status"></div>
+    <div class="spacer"></div>
+    <select id="range"><option value="3600" selected>1 giờ</option><option value="21600">6 giờ</option><option value="86400">24 giờ</option><option value="604800">7 ngày</option></select>
+    <a class="btn" id="d-vms" href="#" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px">Xem VM trên host</a>
+    <button id="d-close">Đóng ✕</button>
+  </header>
+  <div class="body">
+    <div class="info" id="d-info"></div>
+    <div class="charts">
+      <div class="chart"><h3>CPU <span class="now" id="n-cpu"></span></h3><canvas id="c-cpu"></canvas></div>
+      <div class="chart"><h3>RAM <span class="now" id="n-mem"></span></h3><canvas id="c-mem"></canvas></div>
+      <div class="chart"><h3>Network <span class="legend"><span><i style="background:var(--rx)"></i>In</span><span><i style="background:var(--tx)"></i>Out</span></span><span class="now" id="n-net"></span></h3><canvas id="c-net"></canvas></div>
+      <div class="chart"><h3>Disk I/O <span class="legend"><span><i style="background:var(--rx)"></i>Read</span><span><i style="background:var(--disk)"></i>Write</span></span><span class="now" id="n-io"></span></h3><canvas id="c-io"></canvas></div>
+    </div>
+    <div class="panel"><table class="mounts"><thead><tr><th>Datastore gắn với host</th><th>Loại</th><th>Dung lượng</th><th>Còn trống</th><th style="width:30%">Đã dùng</th></tr></thead><tbody id="d-ds"></tbody></table></div>
+  </div>
+</aside>
+<div class="tip" id="tip"></div>
+<script src="hosts.js"></script>
+<script src="imp.js"></script>
+</body>
+</html>

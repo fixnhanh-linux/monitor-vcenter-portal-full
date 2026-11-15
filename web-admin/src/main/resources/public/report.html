@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a.on { background: var(--panel-2); color: var(--accent); }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .rbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+  .rbar select, .rbar input { min-width: 150px; }
+  .rp-head h2 { margin: 0; font-size: 20px; }
+  .rp-head p { margin: 4px 0 14px; color: var(--muted); font-size: 13px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .tbl th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); cursor: pointer; white-space: nowrap; user-select: none; }
+  .tbl th.num, .tbl td.num { text-align: right; }
+  .tbl th.sorted::after { content: " ▾"; }
+  .tbl th.sorted.asc::after { content: " ▴"; }
+  .tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .tbl tr.click { cursor: pointer; }
+  .tbl tr.click:hover td { background: var(--panel-2); }
+  .tbl tr.sel td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .tbl tfoot td { font-weight: 650; border-top: 2px solid var(--border); }
+  .wrap { overflow: auto; max-height: 560px; }
+  .muted { color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border-radius: 99px; padding: 3px 10px; font-size: 12.5px; }
+  .chip button { border: 0; background: none; padding: 0 2px; cursor: pointer; color: var(--muted); }
+  .print-only { display: none; }
+  @media print {
+    header.top, .rbar, .noprint { display: none !important; }
+    .print-only { display: block; }
+    body { background: #fff; }
+    .panel, .stat { box-shadow: none !important; }
+    .wrap { max-height: none; overflow: visible; }
+    .tbl th { position: static; }
+    .tbl td, .tbl th { font-size: 10.5px; padding: 3px 6px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs"><a href="home">Việc của tôi</a><a href="./">VM</a><a href="hosts">Host ESXi &amp; Datastore</a><a href="report" class="on">Báo cáo</a></nav>
+  <div class="spacer"></div>
+  <nav class="links"><a href="settings#ops" id="settings-link" hidden>⚙ Gửi email định kỳ</a><a href="docs" target="_blank" rel="noopener">API</a></nav>
+</header>
+<main>
+  <div class="rbar">
+    <select id="month" aria-label="Tháng"></select>
+    <select id="site" aria-label="Site"><option value="">Mọi site</option></select>
+    <input id="q" type="search" placeholder="Tìm khách hàng…" autocomplete="off">
+    <span id="selchip"></span>
+    <div class="spacer"></div>
+    <button id="csv-c" title="Tải bảng khách hàng (CSV, mở bằng Excel)">⬇ CSV khách hàng</button>
+    <button id="csv-v" title="Tải chi tiết từng VM (CSV)">⬇ CSV từng VM</button>
+    <button id="print" class="primary" title="In hoặc lưu PDF (chọn máy in: Save as PDF)">🖨 In / PDF</button>
+  </div>
+
+  <div class="rp-head"><h2 id="title">Báo cáo mức dùng</h2><p id="sub"></p></div>
+  <section class="stats" id="stats"></section>
+
+  <section class="panel" style="padding:0;margin-bottom:14px">
+    <div class="panel-head" style="padding:12px 14px"><h2>Theo khách hàng</h2><span class="muted noprint" style="font-size:12.5px">bấm một khách để xem VM của khách đó</span></div>
+    <div class="wrap"><table class="tbl" id="tc"></table></div>
+  </section>
+
+  <section class="panel" style="padding:0">
+    <div class="panel-head" style="padding:12px 14px"><h2 id="vm-title">Từng VM</h2></div>
+    <div class="wrap"><table class="tbl" id="tv"></table></div>
+  </section>
+  <p class="muted" style="font-size:12px;margin-top:12px">CPU / RAM trung bình tính trên thời gian VM bật nguồn; "đỉnh" là giá trị cao nhất trong tháng; Disk là phân vùng đầy nhất; Network là tổng dung lượng truyền. Khách hàng theo cách gán hiện tại.</p>
+</main>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const GB = 1073741824;
+const fmtB = (b) => { const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']; let i = 0; b = Number(b) || 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return `${b.toFixed(b >= 100 || i === 0 ? 0 : 1)} ${u[i]}`; };
+const pct = (v) => `${(v ?? 0).toFixed(1)}%`;
+const num = (v) => Math.round(v || 0).toLocaleString('vi-VN');
+const level = (v) => (v >= 90 ? 'color:var(--crit)' : v >= 80 ? 'color:var(--warn)' : '');
+const state = { rep: null, sortC: ['customer', true], sortV: ['cpuAvg', false], sel: null };
+
+async function api(path) {
+  const r = await fetch('api/v1/' + path, { credentials: 'same-origin' });
+  if (r.status === 401) { location.href = 'login?next=' + encodeURIComponent('/report' + location.search); throw new Error('unauthorized'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+function toast(t) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 6000); }
+
+const C_COLS = [
+  ['customer', 'Khách hàng', (r) => (r.customer ? esc(r.customer) : '<i class="muted">(chưa gán)</i>')],
+  ['sites', 'Site', (r) => esc(r.sites)],
+  ['vms', 'VM', (r) => num(r.vms), 1], ['cores', 'vCPU', (r) => num(r.cores), 1], ['memTotal', 'RAM', (r) => fmtB(r.memTotal), 1],
+  ['diskTotal', 'Disk cấp', (r) => fmtB(r.diskTotal), 1],
+  ['cpuAvg', 'CPU TB', (r) => pct(r.cpuAvg), 1], ['cpuMax', 'CPU đỉnh', (r) => `<span style="${level(r.cpuMax)}">${pct(r.cpuMax)}</span>`, 1],
+  ['memAvg', 'RAM TB', (r) => pct(r.memAvg), 1], ['memMax', 'RAM đỉnh', (r) => `<span style="${level(r.memMax)}">${pct(r.memMax)}</span>`, 1],
+  ['diskMax', 'Disk đầy nhất', (r) => `<span style="${level(r.diskMax)}">${pct(r.diskMax)}</span>`, 1],
+  ['rxBytes', 'Net in', (r) => fmtB(r.rxBytes), 1], ['txBytes', 'Net out', (r) => fmtB(r.txBytes), 1], ['onHours', 'Giờ chạy', (r) => num(r.onHours), 1],
+];
+const V_COLS = [
+  ['name', 'VM', (r) => esc(r.name)], ['customer', 'Khách hàng', (r) => (r.customer ? esc(r.customer) : '<i class="muted">—</i>')], ['site', 'Site', (r) => esc(r.site)],
+  ...C_COLS.slice(3, 13), ['onHours', 'Giờ chạy', (r) => num(r.onHours), 1], ['days', 'Ngày', (r) => r.days, 1],
+];
+
+function sortRows(rows, [k, asc]) {
+  const f = typeof rows[0]?.[k] === 'number' ? (a, b) => a[k] - b[k] : (a, b) => String(a[k]).localeCompare(String(b[k]), 'vi');
+  // giá trị trống (VM chưa gán khách) luôn nằm cuối
+  return rows.slice().sort((a, b) => (!a[k] && a[k] !== 0) - (!b[k] && b[k] !== 0) || (asc ? f(a, b) : f(b, a)));
+}
+function table(el, cols, rows, sort, foot, click) {
+  el.innerHTML = `<thead><tr>${cols.map(([k, l, , n]) => `<th data-k="${k}" class="${n ? 'num' : ''} ${sort[0] === k ? 'sorted' + (sort[1] ? ' asc' : '') : ''}">${l}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r, i) => `<tr data-i="${i}" class="${click ? 'click' : ''} ${click && state.sel === r.customer ? 'sel' : ''}">${cols.map(([, , f, n]) => `<td class="${n ? 'num' : ''}">${f(r)}</td>`).join('')}</tr>`).join('')
+      || `<tr><td colspan="${cols.length}" class="muted">Không có dữ liệu</td></tr>`}</tbody>${foot ? `<tfoot><tr>${cols.map(([k, , f, n], i) => `<td class="${n ? 'num' : ''}">${i === 0 ? 'Tổng' : foot[k] != null ? f(foot) : ''}</td>`).join('')}</tr></tfoot>` : ''}`;
+  el._rows = rows;
+}
+
+function render() {
+  const rep = state.rep; if (!rep) return;
+  const q = $('q').value.trim().toLowerCase();
+  const custs = sortRows(rep.customers.filter((c) => !q || (c.customer || '(chưa gán)').toLowerCase().includes(q)), state.sortC);
+  const vms = sortRows(rep.vms.filter((v) => (state.sel === null ? !q || (v.customer || '(chưa gán)').toLowerCase().includes(q) : v.customer === state.sel)), state.sortV);
+  const tot = (rows, k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  const all = rep.vms, on = all.filter((v) => v.samples);
+  const w = tot(on, 'samples');
+  $('title').textContent = `Báo cáo mức dùng tháng ${rep.month.split('-').reverse().join('/')}`;
+  $('sub').textContent = rep.days ? `${rep.days} ngày có số liệu (${rep.from.split('-').reverse().join('/')} → ${rep.to.split('-').reverse().join('/')})${$('site').value ? ` · site ${$('site').value}` : ''} · xuất lúc ${new Date().toLocaleString('vi-VN')}` : 'Tháng này chưa có số liệu.';
+  $('stats').innerHTML = [
+    ['Khách hàng', num(rep.customers.filter((c) => c.customer).length) + `<small> · ${num(rep.customers.find((c) => !c.customer)?.vms || 0)} VM chưa gán</small>`],
+    ['VM', num(all.length) + `<small> · ${num(tot(all, 'cores'))} vCPU</small>`],
+    ['RAM cấp', fmtB(tot(all, 'memTotal'))],
+    ['CPU trung bình', pct(w ? on.reduce((a, v) => a + v.cpuAvg * v.samples, 0) / w : 0)],
+    ['RAM trung bình', pct(w ? on.reduce((a, v) => a + v.memAvg * v.samples, 0) / w : 0)],
+    ['Network in / out', `${fmtB(tot(all, 'rxBytes'))}<small> ↑ ${fmtB(tot(all, 'txBytes'))}</small>`],
+  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  const foot = { vms: tot(custs, 'vms'), cores: tot(custs, 'cores'), memTotal: tot(custs, 'memTotal'), diskTotal: tot(custs, 'diskTotal'), rxBytes: tot(custs, 'rxBytes'), txBytes: tot(custs, 'txBytes'), onHours: tot(custs, 'onHours') };
+  table($('tc'), C_COLS, custs, state.sortC, foot, true);
+  table($('tv'), V_COLS, vms, state.sortV, null, false);
+  $('vm-title').textContent = state.sel === null ? `Từng VM (${vms.length})` : `VM của ${state.sel || '(chưa gán)'} (${vms.length})`;
+  $('selchip').innerHTML = state.sel === null ? '' : `<span class="chip">Khách: <b>${esc(state.sel || '(chưa gán)')}</b><button id="unsel" title="Bỏ chọn">✕</button></span>`;
+  const u = $('unsel'); if (u) u.onclick = () => { state.sel = null; render(); };
+}
+
+function query(extra = '') {
+  const p = new URLSearchParams({ month: $('month').value });
+  if ($('site').value) p.set('site', $('site').value);
+  return p.toString() + extra;
+}
+async function load() {
+  state.rep = await api('usage?' + query());
+  const sites = [...new Set(state.rep.vms.map((v) => v.site))].sort();
+  if (!$('site').value) $('site').innerHTML = '<option value="">Mọi site</option>' + sites.map((s) => `<option>${esc(s)}</option>`).join('');
+  const p = new URLSearchParams(location.search); p.set('month', $('month').value);
+  if ($('site').value) p.set('site', $('site').value); else p.delete('site');
+  history.replaceState(null, '', '?' + p);
+  render();
+}
+
+$('tc').onclick = (e) => {
+  const th = e.target.closest('th');
+  if (th) { const k = th.dataset.k; state.sortC = [k, state.sortC[0] === k ? !state.sortC[1] : typeof $('tc')._rows[0]?.[k] !== 'number']; return render(); }
+  const tr = e.target.closest('tbody tr[data-i]'); if (!tr) return;
+  const c = $('tc')._rows[tr.dataset.i].customer;
+  state.sel = state.sel === c ? null : c; render();
+  if (state.sel !== null) $('tv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+$('tv').onclick = (e) => { const th = e.target.closest('th'); if (!th) return; const k = th.dataset.k; state.sortV = [k, state.sortV[0] === k ? !state.sortV[1] : typeof $('tv')._rows[0]?.[k] !== 'number']; render(); };
+$('q').oninput = render;
+$('month').onchange = () => { state.sel = null; load().catch((e) => toast(e.message)); };
+$('site').onchange = () => { state.sel = null; load().catch((e) => toast(e.message)); };
+$('csv-c').onclick = () => { location.href = 'api/v1/usage?' + query('&format=csv') + (state.sel !== null ? '&customer=' + encodeURIComponent(state.sel || '(none)') : ''); };
+$('csv-v').onclick = () => { location.href = 'api/v1/usage?' + query('&format=csv&detail=vms') + (state.sel !== null ? '&customer=' + encodeURIComponent(state.sel || '(none)') : ''); };
+$('print').onclick = () => window.print();
+
+(async function init() {
+  const me = await api('me');
+  if (me.enroll) return location.replace('account?enroll=1');
+  if (me.role === 'manager') document.querySelectorAll('.navtabs a[href="hosts"]').forEach((a) => a.remove());
+  if (me.role === 'customer') {
+    // khách hàng: menu của trang khách, không có cột / bộ lọc site nội bộ
+    document.querySelector('.navtabs').innerHTML = '<a href="my">Máy chủ của tôi</a><a href="report" class="on">Báo cáo tháng</a>';
+    $('site').hidden = true; $('settings-link').hidden = true;
+    for (const cols of [C_COLS, V_COLS]) { const i = cols.findIndex((c) => c[0] === 'site' || c[0] === 'sites'); if (i >= 0) cols.splice(i, 1); }
+  }
+  $('settings-link').hidden = me.role !== 'admin';
+  const { months, current } = await api('usage/months');
+  const list = [...new Set([...months, current])].sort().reverse();
+  const p = new URLSearchParams(location.search);
+  $('month').innerHTML = list.map((m) => `<option value="${m}">Tháng ${m.split('-').reverse().join('/')}${m === current ? ' (đang chạy)' : ''}</option>`).join('');
+  if (p.get('month') && list.includes(p.get('month'))) $('month').value = p.get('month');
+  if (p.get('site')) { $('site').innerHTML += `<option selected>${esc(p.get('site'))}</option>`; }
+  await load();
+})().catch((e) => { if (e.message !== 'unauthorized') toast('Không tải được báo cáo: ' + e.message); });
+</script>
+<script src="imp.js"></script>
+</body>
+</html>

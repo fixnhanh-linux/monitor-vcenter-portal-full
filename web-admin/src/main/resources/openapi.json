@@ -1,0 +1,949 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "VM Monitor Portal API",
+  "version": "1.0.0",
+  "description": "API đọc số liệu CPU / RAM / Network / Disk của VM theo site, cảnh báo và gửi số liệu.\n\nXác thực bằng header `X-API-Key: <key>` (hoặc `Authorization: Bearer <key>`). Tạo key: `node server.js apikey <tên> --role read`.\n\nVai trò: `read` (đọc), `ingest` (gửi số liệu), `admin` (đọc + xoá VM + gửi thử thông báo)."
+ },
+ "servers": [
+  {
+   "url": "__BASE_URL__"
+  }
+ ],
+ "components": {
+  "securitySchemes": {
+   "ApiKey": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-API-Key"
+   },
+   "Bearer": {
+    "type": "http",
+    "scheme": "bearer"
+   }
+  },
+  "schemas": {
+   "VmSummary": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "example": "HCM/web-01",
+      "description": "site/tên — định danh duy nhất"
+     },
+     "site": {
+      "type": "string",
+      "example": "HCM"
+     },
+     "name": {
+      "type": "string",
+      "example": "web-01"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "online",
+       "offline",
+       "off"
+      ],
+      "description": "off = VM tắt nguồn (theo vCenter)"
+     },
+     "ip": {
+      "type": "string"
+     },
+     "os": {
+      "type": "string"
+     },
+     "hostname": {
+      "type": "string"
+     },
+     "cores": {
+      "type": "integer"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "agent",
+       "vcenter"
+      ]
+     },
+     "cluster": {
+      "type": "string"
+     },
+     "host": {
+      "type": "string",
+      "description": "ESXi host"
+     },
+     "datacenter": {
+      "type": "string"
+     },
+     "lastSeen": {
+      "type": "integer",
+      "description": "epoch ms"
+     },
+     "cpu": {
+      "type": "number",
+      "description": "%"
+     },
+     "mem": {
+      "type": "number",
+      "description": "%"
+     },
+     "disk": {
+      "type": "number",
+      "description": "% (tổng)"
+     },
+     "diskMax": {
+      "type": "number",
+      "description": "% phân vùng đầy nhất"
+     },
+     "memTotal": {
+      "type": "number",
+      "description": "bytes"
+     },
+     "diskTotal": {
+      "type": "number",
+      "description": "bytes"
+     },
+     "netRx": {
+      "type": "number",
+      "description": "bytes/s"
+     },
+     "netTx": {
+      "type": "number",
+      "description": "bytes/s"
+     },
+     "diskRead": {
+      "type": "number",
+      "description": "bytes/s"
+     },
+     "diskWrite": {
+      "type": "number",
+      "description": "bytes/s"
+     },
+     "alerts": {
+      "type": "integer",
+      "description": "số cảnh báo đang hoạt động"
+     }
+    }
+   },
+   "Point": {
+    "type": "object",
+    "properties": {
+     "ts": {
+      "type": "integer"
+     },
+     "cpu": {
+      "type": "number"
+     },
+     "mem": {
+      "type": "number"
+     },
+     "disk": {
+      "type": "number"
+     },
+     "rx": {
+      "type": "number"
+     },
+     "tx": {
+      "type": "number"
+     },
+     "rd": {
+      "type": "number"
+     },
+     "wr": {
+      "type": "number"
+     }
+    }
+   },
+   "Alert": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "vmId": {
+      "type": "string"
+     },
+     "site": {
+      "type": "string"
+     },
+     "vm": {
+      "type": "string"
+     },
+     "metric": {
+      "type": "string"
+     },
+     "severity": {
+      "type": "string",
+      "enum": [
+       "critical",
+       "warning",
+       "info"
+      ]
+     },
+     "type": {
+      "type": "string",
+      "enum": [
+       "firing",
+       "resolved"
+      ]
+     },
+     "value": {
+      "type": "number"
+     },
+     "threshold": {
+      "type": "number"
+     },
+     "since": {
+      "type": "integer"
+     },
+     "ts": {
+      "type": "integer"
+     },
+     "text": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ },
+ "security": [
+  {
+   "ApiKey": []
+  },
+  {
+   "Bearer": []
+  }
+ ],
+ "tags": [
+  {
+   "name": "Tổng quan"
+  },
+  {
+   "name": "Site"
+  },
+  {
+   "name": "VM"
+  },
+  {
+   "name": "Cảnh báo"
+  },
+  {
+   "name": "Gửi số liệu"
+  },
+  {
+   "name": "Tích hợp"
+  }
+ ],
+ "paths": {
+  "/api/v1/summary": {
+   "get": {
+    "tags": [
+     "Tổng quan"
+    ],
+    "summary": "Tổng quan toàn hệ thống",
+    "parameters": [
+     {
+      "name": "site",
+      "in": "query",
+      "description": "Lọc theo site",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "vms": {
+           "type": "integer"
+          },
+          "online": {
+           "type": "integer"
+          },
+          "offline": {
+           "type": "integer"
+          },
+          "off": {
+           "type": "integer"
+          },
+          "sites": {
+           "type": "integer"
+          },
+          "cpuAvg": {
+           "type": "number"
+          },
+          "memAvg": {
+           "type": "number"
+          },
+          "diskAvg": {
+           "type": "number"
+          },
+          "netRx": {
+           "type": "number"
+          },
+          "netTx": {
+           "type": "number"
+          },
+          "alerts": {
+           "type": "object"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/sites": {
+   "get": {
+    "tags": [
+     "Site"
+    ],
+    "summary": "Danh sách site kèm số liệu tổng hợp",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "data": {
+           "type": "array",
+           "items": {
+            "type": "object",
+            "properties": {
+             "site": {
+              "type": "string"
+             },
+             "vms": {
+              "type": "integer"
+             },
+             "online": {
+              "type": "integer"
+             },
+             "offline": {
+              "type": "integer"
+             },
+             "off": {
+              "type": "integer"
+             },
+             "cpuAvg": {
+              "type": "number"
+             },
+             "memAvg": {
+              "type": "number"
+             },
+             "diskAvg": {
+              "type": "number"
+             },
+             "netRx": {
+              "type": "number"
+             },
+             "netTx": {
+              "type": "number"
+             },
+             "alerts": {
+              "type": "integer"
+             },
+             "critical": {
+              "type": "integer"
+             }
+            }
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vms": {
+   "get": {
+    "tags": [
+     "VM"
+    ],
+    "summary": "Danh sách VM (lọc, sắp xếp, phân trang)",
+    "parameters": [
+     {
+      "name": "site",
+      "in": "query",
+      "description": "Lọc theo site (nhiều site cách nhau dấu phẩy)",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "description": "online | offline | off | alert",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "description": "Tìm theo tên, IP, host, cluster",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "sort",
+      "in": "query",
+      "description": "name | cpu | mem | disk | net | site (thêm \"-\" phía trước để giảm dần, vd -cpu)",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "description": "Số dòng mỗi trang (tối đa 5000)",
+      "schema": {
+       "type": "integer",
+       "default": 100
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "description": "Bỏ qua bao nhiêu dòng",
+      "schema": {
+       "type": "integer",
+       "default": 0
+      }
+     },
+     {
+      "name": "format",
+      "in": "query",
+      "description": "json | csv",
+      "schema": {
+       "type": "string",
+       "default": "json"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "total": {
+           "type": "integer"
+          },
+          "limit": {
+           "type": "integer"
+          },
+          "offset": {
+           "type": "integer"
+          },
+          "data": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/VmSummary"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vms/{site}/{name}": {
+   "get": {
+    "tags": [
+     "VM"
+    ],
+    "summary": "Chi tiết một VM (gồm phân vùng ổ đĩa, cảnh báo)",
+    "parameters": [
+     {
+      "name": "site",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VmSummary"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "VM"
+    ],
+    "summary": "Xoá VM khỏi portal (admin)",
+    "parameters": [
+     {
+      "name": "site",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/vms/{site}/{name}/metrics": {
+   "get": {
+    "tags": [
+     "VM"
+    ],
+    "summary": "Chuỗi số liệu theo thời gian",
+    "parameters": [
+     {
+      "name": "site",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "range",
+      "in": "query",
+      "description": "Khoảng thời gian tính bằng giây (mặc định 3600, tối đa theo retentionDays)",
+      "schema": {
+       "type": "integer",
+       "default": 3600
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "resolution": {
+           "type": "string",
+           "example": "raw | 5m | 10m"
+          },
+          "points": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Point"
+           }
+          }
+         }
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/alerts": {
+   "get": {
+    "tags": [
+     "Cảnh báo"
+    ],
+    "summary": "Cảnh báo đang hoạt động hoặc lịch sử",
+    "parameters": [
+     {
+      "name": "state",
+      "in": "query",
+      "description": "active | history",
+      "schema": {
+       "type": "string",
+       "default": "active"
+      }
+     },
+     {
+      "name": "site",
+      "in": "query",
+      "description": "Lọc theo site",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "severity",
+      "in": "query",
+      "description": "critical | warning | info",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "description": "Số dòng (history)",
+      "schema": {
+       "type": "integer",
+       "default": 100
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "total": {
+           "type": "integer"
+          },
+          "data": {
+           "type": "array",
+           "items": {
+            "$ref": "#/components/schemas/Alert"
+           }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/alerts/test": {
+   "post": {
+    "tags": [
+     "Cảnh báo"
+    ],
+    "summary": "Gửi thông báo thử tới các kênh đã bật (admin)",
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v1/report": {
+   "post": {
+    "tags": [
+     "Gửi số liệu"
+    ],
+    "summary": "Gửi số liệu một VM hoặc một mảng VM (ingest)",
+    "description": "Cùng định dạng agent.js gửi. Có thể gửi mảng tối đa 2000 VM mỗi lần.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "oneOf": [
+         {
+          "type": "object"
+         },
+         {
+          "type": "array",
+          "items": {
+           "type": "object"
+          }
+         }
+        ]
+       },
+       "example": {
+        "site": "HCM",
+        "name": "web-01",
+        "ip": "10.0.0.5",
+        "os": "Ubuntu 22.04",
+        "cores": 4,
+        "cpu": {
+         "percent": 37.5
+        },
+        "mem": {
+         "total": 8589934592,
+         "used": 4294967296,
+         "percent": 50
+        },
+        "disk": {
+         "total": 107374182400,
+         "used": 53687091200,
+         "percent": 50,
+         "readRate": 1048576,
+         "writeRate": 524288,
+         "mounts": [
+          {
+           "mount": "/",
+           "total": 107374182400,
+           "used": 53687091200,
+           "percent": 50
+          }
+         ]
+        },
+        "net": {
+         "rxRate": 2097152,
+         "txRate": 1048576
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "OK",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "ok": {
+           "type": "boolean"
+          },
+          "accepted": {
+           "type": "integer"
+          }
+         }
+        }
+       }
+      }
+     },
+     "401": {
+      "description": "Lỗi",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "error": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/metrics": {
+   "get": {
+    "tags": [
+     "Tích hợp"
+    ],
+    "summary": "Số liệu định dạng Prometheus (cho Grafana / Prometheus)",
+    "responses": {
+     "200": {
+      "description": "text/plain; version=0.0.4"
+     }
+    }
+   }
+  },
+  "/api/v1/stream": {
+   "get": {
+    "tags": [
+     "Tích hợp"
+    ],
+    "summary": "Server-Sent Events: updates, status, alert, removed",
+    "responses": {
+     "200": {
+      "description": "text/event-stream"
+     }
+    }
+   }
+  }
+ }
+}

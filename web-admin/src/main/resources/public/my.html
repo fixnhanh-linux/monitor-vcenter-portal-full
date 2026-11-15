@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Máy chủ của tôi · VM Monitor</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .navtabs { display: flex; gap: 2px; }
+  .navtabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; font-size: 13.5px; }
+  .navtabs a.on { background: var(--panel-2); color: var(--accent); }
+  .navtabs a:hover { text-decoration: none; color: var(--accent); }
+  .hello { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .hello h2 { margin: 0; font-size: 22px; }
+  .hello p { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+  .hello select { min-width: 200px; }
+  .stats { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important; }
+  .alert-list { list-style: none; margin: 0; padding: 0; }
+  .alert-list li { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); font-size: 13.5px; cursor: pointer; }
+  .alert-list li:hover { background: var(--panel-2); }
+  .bar2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+  .bar2 input[type=search] { min-width: 240px; flex: 1; max-width: 360px; }
+  .vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .vm { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; box-shadow: var(--shadow); cursor: pointer; display: grid; gap: 8px; text-align: left; }
+  .vm:hover { border-color: var(--accent); }
+  .vm.crit { border-left: 3px solid var(--crit); } .vm.warn { border-left: 3px solid var(--warn); }
+  .vm .t { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 14px; }
+  .vm .t span.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .vm .m { color: var(--muted); font-size: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .meters div { font-size: 11.5px; color: var(--muted); }
+  .meters b { color: var(--text); font-weight: 600; }
+  .st { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .st.on { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+  .st.off { background: var(--panel-2); color: var(--muted); }
+  .st.lost { background: color-mix(in srgb, var(--crit) 15%, transparent); color: var(--crit); }
+  .spark { width: 100%; height: 34px; display: block; }
+  .drawer2 { position: fixed; top: 0; right: 0; bottom: 0; width: min(760px, 100%); background: var(--bg); border-left: 1px solid var(--border); box-shadow: -10px 0 40px rgba(0,0,0,.2);
+    transform: translateX(105%); transition: transform .2s; z-index: 20; display: flex; flex-direction: column; }
+  .drawer2.open { transform: none; }
+  .drawer2 header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .drawer2 header h3 { margin: 0; font-size: 16px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer2 .body { padding: 16px 18px; overflow-y: auto; display: grid; gap: 14px; }
+  .kv { display: grid; grid-template-columns: 120px 1fr; gap: 5px 12px; font-size: 13px; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .chartbox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px 6px; }
+  .chartbox h4 { margin: 0 0 4px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
+  .chartbox h4 small { color: var(--muted); font-weight: 500; }
+  .chartbox svg { width: 100%; height: 150px; display: block; }
+  .shade { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 15; display: none; }
+  .shade.open { display: block; }
+  table.mt { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.mt td, table.mt th { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+  table.mt th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .empty2 { padding: 40px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1><span class="logo">VM</span><span class="t">VM Monitor</span></h1>
+  <nav class="navtabs" id="nav"><a href="my" class="on">Máy chủ của tôi</a><a href="report">Báo cáo tháng</a></nav>
+  <div class="live" id="live"><i></i><span>Đang kết nối…</span></div>
+  <div class="spacer"></div>
+  <nav class="links"><span class="user"><a href="account" title="Tài khoản: đổi mật khẩu, xác thực 2 lớp"><b id="who"></b></a><a href="#" id="logout">Đăng xuất</a></span></nav>
+</header>
+<main>
+  <section class="hello">
+    <div><h2 id="title">Máy chủ của tôi</h2><p id="sub">Tình trạng các máy chủ ảo theo thời gian thực.</p></div>
+    <span class="spacer"></span>
+    <select id="cust" hidden aria-label="Khách hàng"></select>
+  </section>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="panel" id="alerts" hidden style="padding:0;margin-bottom:14px">
+    <div class="panel-head" style="padding:12px 14px"><h2>Cảnh báo đang có</h2><span class="count" id="a-count"></span></div>
+    <ul class="alert-list" id="a-list"></ul>
+  </section>
+
+  <div class="bar2">
+    <input id="q" type="search" placeholder="Tìm tên máy, IP, hệ điều hành…" autocomplete="off">
+    <div class="seg" id="status">
+      <button data-v="" class="on">Tất cả</button><button data-v="online">Đang chạy</button><button data-v="off">Tắt</button><button data-v="offline">Mất kết nối</button><button data-v="alert">Có cảnh báo</button>
+    </div>
+    <select id="sort" aria-label="Sắp xếp"><option value="name">Tên A→Z</option><option value="cpu">CPU cao nhất</option><option value="mem">RAM cao nhất</option><option value="disk">Ổ đĩa đầy nhất</option><option value="net">Network cao nhất</option></select>
+    <span class="spacer"></span>
+    <button id="csv" title="Tải danh sách (CSV, mở bằng Excel)">⬇ CSV</button>
+  </div>
+  <section class="vgrid" id="grid"></section>
+</main>
+
+<div class="shade" id="shade"></div>
+<aside class="drawer2" id="drawer" aria-hidden="true">
+  <header><h3 id="d-name"></h3><select id="d-range" aria-label="Khoảng thời gian"><option value="3600">1 giờ</option><option value="21600">6 giờ</option><option value="86400">24 giờ</option><option value="604800">7 ngày</option></select><button class="ghost" id="d-close" aria-label="Đóng">✕</button></header>
+  <div class="body" id="d-body"></div>
+</aside>
+<div id="toast" class="toast"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const bytes = (b, d = 1) => { const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; b = Number(b) || 0; while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; } return `${b.toFixed(i ? d : 0)} ${u[i]}`; };
+const rate = (b) => bytes(b) + '/s';
+const pct = (v) => `${(v ?? 0).toFixed(1)}%`;
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lvl = (v, base) => (v >= 90 ? 'var(--crit)' : v >= 80 ? 'var(--warn)' : `var(${base})`);
+const S = { vms: new Map(), alerts: [], me: null, f: { q: '', status: '', sort: 'name', cust: '' }, open: null };
+const STATUS = { online: ['on', 'Đang chạy'], off: ['off', 'Đã tắt'], offline: ['lost', 'Mất kết nối'] };
+
+async function api(path) {
+  const r = await fetch('api/v1/' + path, { credentials: 'same-origin' });
+  if (r.status === 401) { location.href = 'khach-hang?next=/my'; throw new Error('unauthorized'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+function toast(t) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 5000); }
+const alertsOf = (id) => S.alerts.filter((a) => a.vmId === id);
+
+function merge(v) {
+  const o = S.vms.get(v.id);
+  const spark = o?.spark || (v.spark || []).map(([ts, cpu]) => ({ ts, cpu }));
+  if (o && v.lastSeen !== o.lastSeen && v.status === 'online') { spark.push({ ts: v.lastSeen, cpu: v.cpu }); if (spark.length > 40) spark.shift(); }
+  delete v.spark;
+  S.vms.set(v.id, Object.assign(o || {}, v, { spark }));
+}
+
+function scoped() { return [...S.vms.values()].filter((v) => !S.f.cust || v.customer === S.f.cust); }
+function render() {
+  const all = scoped(), on = all.filter((v) => v.status === 'online');
+  const avg = (k) => (on.length ? on.reduce((a, v) => a + (v[k] || 0), 0) / on.length : 0);
+  const sum = (list, k) => list.reduce((a, v) => a + (v[k] || 0), 0);
+  const act = S.alerts.filter((a) => all.some((v) => v.id === a.vmId));
+  const fullDisk = all.filter((v) => (v.diskMax || 0) >= 90).length;
+  $('stats').innerHTML = [
+    ['Máy chủ', `${on.length}<small> đang chạy / ${all.length}</small>`],
+    ['CPU trung bình', `${pct(avg('cpu'))}<small> · ${sum(all, 'cores')} vCPU</small>`],
+    ['RAM trung bình', `${pct(avg('mem'))}<small> · ${bytes(sum(all, 'memTotal'), 0)}</small>`],
+    ['Ổ đĩa', `${bytes(sum(all, 'diskTotal'), 0)}<small>${fullDisk ? ` · <span class="danger">${fullDisk} máy ≥ 90%</span>` : ' cấp phát'}</small>`],
+    ['Network vào / ra', `${rate(sum(on, 'netRx'))}<small> ↑ ${rate(sum(on, 'netTx'))}</small>`],
+    ['Cảnh báo', `<span class="${act.length ? 'danger' : ''}">${act.length}</span><small> · ${new Set(act.map((a) => a.vmId)).size} máy</small>`],
+  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  $('alerts').hidden = !act.length;
+  $('a-count').textContent = act.length;
+  $('a-list').innerHTML = act.slice(0, 50).map((a) => `<li data-id="${esc(a.vmId)}"><span class="sev ${a.severity}">${a.severity === 'critical' ? 'Nghiêm trọng' : 'Cảnh báo'}</span><span>${esc(a.text)}</span></li>`).join('');
+
+  const ql = S.f.q.trim().toLowerCase();
+  const key = { name: (v) => v.name, cpu: (v) => -v.cpu, mem: (v) => -v.mem, disk: (v) => -(v.diskMax || 0), net: (v) => -(v.netRx + v.netTx) }[S.f.sort];
+  const rows = all.filter((v) => (!ql || `${v.name} ${v.ip} ${v.os}`.toLowerCase().includes(ql))
+    && (!S.f.status || (S.f.status === 'alert' ? alertsOf(v.id).length : v.status === S.f.status)))
+    .sort((a, b) => (S.f.sort === 'name' ? a.name.localeCompare(b.name, 'vi', { numeric: true }) : key(a) - key(b)));
+  $('grid').innerHTML = rows.map(card).join('') || `<div class="empty2">${S.vms.size ? 'Không có máy nào khớp bộ lọc.' : 'Chưa có máy chủ nào.'}</div>`;
+  document.querySelectorAll('#status button').forEach((b) => b.classList.toggle('on', b.dataset.v === S.f.status));
+}
+function sparkSvg(pts) {
+  if (!pts || pts.length < 2) return '<svg class="spark"></svg>';
+  const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts || t0 + 1;
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(((p.ts - t0) / (t1 - t0 || 1)) * 100).toFixed(2)},${(32 - (Math.min(100, p.cpu || 0) / 100) * 30).toFixed(2)}`).join('');
+  return `<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="var(--cpu)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function meter(label, v, base, show = true) {
+  return `<div>${label} <b>${show ? pct(v) : '—'}</b><div class="mini"><i style="width:${show ? Math.min(100, v || 0) : 0}%;background:${lvl(v || 0, base)}"></i></div></div>`;
+}
+function card(v) {
+  const al = alertsOf(v.id), crit = al.some((a) => a.severity === 'critical');
+  const [cls, label] = STATUS[v.status] || ['off', v.status];
+  const on = v.status === 'online';
+  return `<button class="vm ${crit ? 'crit' : al.length ? 'warn' : ''}" data-id="${esc(v.id)}">
+    <div class="t"><span class="n" title="${esc(v.name)}">${esc(v.name)}</span>${al.length ? `<span class="sev ${crit ? 'critical' : 'warning'}">⚠ ${al.length}</span>` : ''}<span class="st ${cls}">${label}</span></div>
+    <div class="m"><span>${esc(v.ip || '—')}</span><span>${v.cores || '?'} vCPU · ${bytes(v.memTotal, 0)} RAM</span>${S.me.customers?.length > 1 ? `<span>${esc(v.customer)}</span>` : ''}</div>
+    <div class="meters">${meter('CPU', v.cpu, '--cpu', on)}${meter('RAM', v.mem, '--mem', on)}${meter('Ổ đĩa', v.diskMax, '--disk', !!v.diskTotal)}</div>
+    ${on ? sparkSvg(v.spark) : `<div class="m">${v.status === 'off' ? 'Máy đang tắt' : 'Không nhận được số liệu'} · cập nhật ${new Date(v.lastSeen).toLocaleString('vi-VN')}</div>`}
+  </button>`;
+}
+
+// ---------- chi tiết một máy ----------
+async function openVm(id) {
+  S.open = id;
+  $('drawer').classList.add('open'); $('shade').classList.add('open'); $('drawer').setAttribute('aria-hidden', 'false');
+  const v = S.vms.get(id); $('d-name').textContent = v?.name || id;
+  $('d-body').innerHTML = '<div class="empty2">Đang tải…</div>';
+  await loadDetail();
+}
+function closeVm() { S.open = null; $('drawer').classList.remove('open'); $('shade').classList.remove('open'); $('drawer').setAttribute('aria-hidden', 'true'); }
+async function loadDetail() {
+  const id = S.open; if (!id) return;
+  const path = id.split('/').map(encodeURIComponent).join('/');
+  const [d, m] = await Promise.all([api('vms/' + path), api(`vms/${path}/metrics?range=${$('d-range').value}`)]);
+  if (S.open !== id) return;
+  const [cls, label] = STATUS[d.status] || ['off', d.status];
+  const up = d.uptime ? `${Math.floor(d.uptime / 86400)} ngày ${Math.floor((d.uptime % 86400) / 3600)} giờ` : '—';
+  $('d-body').innerHTML = `
+    <div class="kv"><span>Trạng thái</span><span><span class="st ${cls}">${label}</span></span><span>IP</span><span>${esc(d.ip || '—')}</span>
+      <span>Hệ điều hành</span><span>${esc(d.os || '—')}</span><span>Cấu hình</span><span>${d.cores || '?'} vCPU · ${bytes(d.memTotal, 0)} RAM · ${bytes(d.diskTotal, 0)} ổ đĩa</span>
+      <span>Đã chạy</span><span>${up}</span><span>Cập nhật</span><span>${new Date(d.lastSeen).toLocaleString('vi-VN')}</span></div>
+    ${(d.activeAlerts || []).length ? `<div class="chartbox"><h4>Cảnh báo</h4>${d.activeAlerts.map((a) => `<div style="font-size:13px;padding:3px 0"><span class="sev ${a.severity}">${a.severity === 'critical' ? 'Nghiêm trọng' : 'Cảnh báo'}</span> ${esc(a.text)}</div>`).join('')}</div>` : ''}
+    ${chart('CPU', m.points, [['cpu', '--cpu']], { max: 100, fmt: pct, now: pct(d.cpu) })}
+    ${chart('RAM', m.points, [['mem', '--mem']], { max: 100, fmt: pct, now: `${pct(d.mem)} · ${bytes(d.memUsed, 1)} / ${bytes(d.memTotal, 0)}` })}
+    ${chart('Network', m.points, [['rx', '--rx', 'vào'], ['tx', '--tx', 'ra']], { fmt: rate, now: `↓ ${rate(d.netRx)} ↑ ${rate(d.netTx)}` })}
+    ${chart('Đọc / ghi ổ đĩa', m.points, [['rd', '--rx', 'đọc'], ['wr', '--disk', 'ghi']], { fmt: rate, now: `${rate(d.diskRead)} / ${rate(d.diskWrite)}` })}
+    ${(d.mounts || []).length ? `<div class="chartbox"><h4>Ổ đĩa</h4><table class="mt"><tr><th>Phân vùng</th><th>Đã dùng</th><th>Dung lượng</th><th style="width:40%"></th></tr>
+      ${d.mounts.map((x) => `<tr><td>${esc(x.mount)}</td><td>${bytes(x.used)}</td><td>${bytes(x.total)}</td><td><div class="mini"><i style="width:${x.percent}%;background:${lvl(x.percent, '--disk')}"></i></div> <small>${pct(x.percent)}</small></td></tr>`).join('')}</table></div>` : ''}`;
+}
+function chart(title, pts, series, opt) {
+  const W = 700, H = 150, L = 46, B = 18, T = 6, R = 6;
+  const t1 = Date.now(), t0 = t1 - Number($('d-range').value) * 1000;
+  const max = opt.max || Math.max(1, ...pts.flatMap((p) => series.map(([k]) => p[k] || 0))) * 1.15;
+  const X = (t) => L + ((t - t0) / (t1 - t0)) * (W - L - R), Y = (v) => T + (H - T - B) * (1 - Math.min(v, max) / max);
+  let grid = '';
+  for (let i = 0; i <= 4; i++) { const y = Y((max * i) / 4); grid += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--border)"/><text x="${L - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="var(--muted)">${esc(opt.fmt((max * i) / 4))}</text>`; }
+  for (let i = 0; i <= 4; i++) {
+    const t = t0 + ((t1 - t0) * i) / 4;
+    const lab = t1 - t0 > 86400000 ? new Date(t).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit' }) : new Date(t).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    grid += `<text x="${Math.min(W - R - 20, Math.max(L + 20, X(t)))}" y="${H - 4}" text-anchor="middle" font-size="10" fill="var(--muted)">${lab}</text>`;
+  }
+  const lines = pts.length < 2 ? `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="12" fill="var(--muted)">Đang thu thập dữ liệu…</text>`
+    : series.map(([k, c]) => `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.ts).toFixed(1)},${Y(p[k] || 0).toFixed(1)}`).join('')}" fill="none" stroke="var(${c})" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
+  const legend = series.length > 1 ? series.map(([, c, n]) => `<small><span style="color:var(${c})">●</span> ${n}</small>`).join(' ') : '';
+  return `<div class="chartbox"><h4>${title} <small>${esc(opt.now || '')}</small> ${legend}</h4><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}${lines}</svg></div>`;
+}
+
+// ---------- sự kiện ----------
+$('q').oninput = (e) => { S.f.q = e.target.value; render(); };
+$('status').onclick = (e) => { const b = e.target.closest('button'); if (b) { S.f.status = b.dataset.v; render(); } };
+$('sort').onchange = (e) => { S.f.sort = e.target.value; render(); };
+$('cust').onchange = (e) => { S.f.cust = e.target.value; render(); };
+$('grid').onclick = (e) => { const c = e.target.closest('.vm'); if (c) openVm(c.dataset.id).catch((err) => toast(err.message)); };
+$('a-list').onclick = (e) => { const li = e.target.closest('li'); if (li) openVm(li.dataset.id).catch((err) => toast(err.message)); };
+$('d-close').onclick = $('shade').onclick = closeVm;
+$('d-range').onchange = () => loadDetail().catch((err) => toast(err.message));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeVm(); });
+$('csv').onclick = () => { location.href = 'api/v1/vms?format=csv' + (S.f.cust ? '&customer=' + encodeURIComponent(S.f.cust) : ''); };
+$('logout').onclick = async (e) => { e.preventDefault(); await fetch('api/v1/logout', { method: 'POST' }); location.href = 'khach-hang'; };
+
+function connect() {
+  const es = new EventSource('api/v1/stream');
+  const live = (on) => { $('live').className = 'live' + (on ? ' on' : ''); $('live').querySelector('span').textContent = on ? 'Realtime' : 'Mất kết nối – đang thử lại…'; };
+  es.onopen = () => live(true); es.onerror = () => live(false);
+  let t = 0; const later = () => { if (!t) t = setTimeout(() => { t = 0; render(); }, 1000); };
+  es.addEventListener('updates', (e) => { for (const v of JSON.parse(e.data)) merge(v); later(); });
+  es.addEventListener('status', (e) => { const { id, status } = JSON.parse(e.data); const v = S.vms.get(id); if (v) { v.status = status; later(); } });
+  es.addEventListener('alert', (e) => { S.alerts = JSON.parse(e.data).active || []; later(); });
+  es.addEventListener('reload', () => setTimeout(() => location.reload(), 300));
+}
+
+(async function init() {
+  S.me = await api('me');
+  if (S.me.enroll) return location.replace('account?enroll=1');
+  $('who').textContent = S.me.user;
+  const names = S.me.customers || [];
+  $('title').textContent = names.length === 1 ? names[0] : 'Máy chủ của tôi';
+  if (names.length > 1) { $('cust').hidden = false; $('cust').innerHTML = '<option value="">Tất cả khách hàng</option>' + names.map((c) => `<option>${esc(c)}</option>`).join(''); }
+  const [vms, al] = await Promise.all([api('vms?all=1&spark=1'), api('alerts')]);
+  for (const v of vms.data) merge(v);
+  S.alerts = al.data || [];
+  $('sub').textContent = `${vms.total} máy chủ ảo · cập nhật theo thời gian thực`;
+  render(); connect();
+  setInterval(() => { if (S.open) loadDetail().catch(() => {}); }, 30000);
+})().catch((e) => { if (e.message !== 'unauthorized') toast('Không tải được dữ liệu: ' + e.message); });
+</script>
+<script src="imp.js"></script>
+</body>
+</html>

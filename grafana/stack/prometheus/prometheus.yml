@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: vm-monitor-portal
+    scrape_interval: 30s        # collector lấy số liệu vCenter mỗi 20 giây
+    scrape_timeout: 25s
+    metrics_path: /metrics
+    scheme: http                # đổi thành https nếu portal chạy sau HTTPS
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/portal_api_key.txt   # API key vai trò "read"
+    static_configs:
+      # Portal chạy trên chính máy này: host.docker.internal:3000
+      # Portal ở máy khác: IP_PORTAL:3000 (hoặc domain:443 với scheme https)
+      - targets: ["host.docker.internal:3000"]
+        labels:
+          portal: main

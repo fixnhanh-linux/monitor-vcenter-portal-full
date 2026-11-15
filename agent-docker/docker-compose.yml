@@ -1,0 +1,17 @@
+# VM Monitor Agent cho một site ở xa.
+#   1. cp .env.example .env   rồi điền MONITOR_SERVER + MONITOR_TOKEN (API key tạo ở web admin: Cài đặt → vCenter → Thêm collector cho site ở xa)
+#   2. docker compose up -d   (lần đầu tự build image từ mã nguồn trong thư mục này; hoặc docker load -i vm-monitor-agent.tar)
+#   3. docker compose logs -f
+services:
+  agent:
+    image: vm-monitor-agent:latest
+    build: .
+    container_name: vm-monitor-agent
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data          # collector.log (xoay vòng 5 MB × 3)
+    # agent chỉ gọi RA: vCenter của site (443) và web admin; không mở cổng nào vào trong
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

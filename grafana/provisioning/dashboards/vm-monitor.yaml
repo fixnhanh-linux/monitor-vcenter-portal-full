@@ -1,0 +1,14 @@
+# (Tuỳ chọn) Tự nạp dashboard khi Grafana khởi động.
+# 1. Copy file này vào /etc/grafana/provisioning/dashboards/
+# 2. Copy các file grafana/dashboards/*.json vào /var/lib/grafana/dashboards/vm-monitor/
+#    và thay mọi chuỗi ${DS_PROMETHEUS} trong file json bằng uid datasource (vd: prometheus):
+#      sed -i 's/${DS_PROMETHEUS}/prometheus/g' *.json
+apiVersion: 1
+providers:
+  - name: vm-monitor
+    folder: VM Monitor
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards/vm-monitor
