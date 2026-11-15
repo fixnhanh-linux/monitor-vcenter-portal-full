@@ -75,7 +75,7 @@
     <div class="tscroll"><table class="vmtable">
       <thead><tr>
         <th class="pickc" id="pick-th"><input type="checkbox" id="pick-page" title="Chọn / bỏ chọn cả trang (để gán khách hàng loạt)"></th><th data-sort="name">VM</th><th data-sort="customer">Khách hàng</th><th data-sort="site">Site</th><th>IP</th><th>Cluster / Host</th>
-        <th data-sort="cpu">CPU</th><th data-sort="mem">RAM</th><th data-sort="disk">Disk</th>
+        <th data-sort="cpu">CPU</th><th data-sort="mem" title="VM lấy từ vCenter: RAM hoạt động do ESXi đo (thấp hơn RAM đã dùng trong hệ điều hành), trừ khi bật đọc trong VM">RAM</th><th data-sort="disk">Disk</th>
         <th data-sort="net">Network ↓ / ↑</th><th>Disk I/O R / W</th><th>Hệ điều hành</th>
       </tr></thead>
       <tbody id="vmrows"></tbody>
@@ -111,7 +111,7 @@
     <div class="panel d-alerts" id="d-alerts"></div>
     <div class="charts">
       <div class="chart"><h3>CPU <span class="now" id="n-cpu"></span></h3><canvas id="c-cpu"></canvas></div>
-      <div class="chart"><h3>RAM <span class="now" id="n-mem"></span></h3><canvas id="c-mem"></canvas></div>
+      <div class="chart"><h3><span id="t-mem">RAM</span> <span class="now" id="n-mem"></span></h3><canvas id="c-mem"></canvas></div>
       <div class="chart"><h3>Network <span class="legend"><span><i style="background:var(--rx)"></i>In</span><span><i style="background:var(--tx)"></i>Out</span></span><span class="now" id="n-net"></span></h3><canvas id="c-net"></canvas></div>
       <div class="chart"><h3>Disk I/O <span class="legend"><span><i style="background:var(--rx)"></i>Read</span><span><i style="background:var(--disk)"></i>Write</span></span><span class="now" id="n-io"></span></h3><canvas id="c-io"></canvas></div>
     </div>

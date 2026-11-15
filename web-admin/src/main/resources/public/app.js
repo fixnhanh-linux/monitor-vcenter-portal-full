@@ -388,6 +388,7 @@ function renderCards(shown) {
       const m = el.querySelector('.m-' + l), bar = m.querySelector('.bar > div');
       bar.style.width = `${val || 0}%`; bar.style.background = levelColor(val || 0, base);
       m.querySelector('em').textContent = pct(val);
+      if (l === 'RAM') m.title = v.memSource === 'active' ? 'RAM hoạt động do ESXi đo (active memory) — thấp hơn RAM đã dùng trong hệ điều hành' : 'RAM đã dùng trong hệ điều hành';
     }
     el.querySelector('.rx').textContent = rate(v.netRx);
     el.querySelector('.tx').textContent = rate(v.netTx);
@@ -496,7 +497,7 @@ function renderDetail() {
     ['Khách hàng', d.customer ? `${d.customer}${d.customerSourceLabel ? ` (${d.customerSourceLabel})` : ''}` : 'chưa xác định'],
     ['Site', d.site], ['IP', d.ip], ['Hostname', d.hostname], ['Hệ điều hành', d.os],
     ['Cluster', d.cluster], ['Host ESXi', d.host], ['Datacenter', d.datacenter], ['Nguồn dữ liệu', d.source === 'vcenter' ? 'vCenter' : 'Agent'],
-    ['vCPU', d.cores], [d.memSource === 'active' ? 'RAM (active)' : 'RAM', d.memTotal ? `${bytes(d.memUsed)} / ${bytes(d.memTotal)}` : '—'],
+    ['vCPU', d.cores], [d.memSource === 'active' ? 'RAM hoạt động (ESXi đo)' : 'RAM', d.memTotal ? `${bytes(d.memUsed)} / ${bytes(d.memTotal)}` : '—'],
     [d.diskSource === 'guest' ? 'Disk (df)' : 'Disk', d.diskTotal ? `${bytes(d.diskUsed)} / ${bytes(d.diskTotal)}` : '—'], ['Uptime', d.uptime ? duration(d.uptime) : '—'],
     ['Cập nhật', ago(d.lastSeen)], ...(d.load && d.load.some((x) => x) ? [['Load avg', d.load.map((x) => x.toFixed(2)).join(' · ')]] : []),
   ].filter(([, v]) => v !== undefined && v !== '' && v !== null).map(([k, v]) => `<div><small>${k}</small>${esc(v)}</div>`).join('');
@@ -509,7 +510,8 @@ function renderDetail() {
   if (vc) {
     const ram = d.memSource === 'guest'
       ? 'ℹ <b>RAM</b> đọc trong VM (<code>/proc/meminfo</code>, giống lệnh <code>free</code>). '
-      : 'ℹ <b>RAM</b> lấy từ vCenter là bộ nhớ hoạt động (active memory) mà ESXi đo được, thường thấp hơn RAM đã dùng trong hệ điều hành. ';
+      : 'ℹ <b>RAM hoạt động</b> là phần RAM máy ảo vừa truy cập gần đây do ESXi đo (active memory), <b>không phải</b> RAM đã dùng trong hệ điều hành — thường thấp hơn nhiều so với <code>free</code> / htop. '
+        + 'Muốn số khớp <code>free</code>: bật <i>Đọc Disk + RAM bên trong VM</i> ở <a href="settings#vc">Cài đặt → vCenter</a> (cần tài khoản đăng nhập trong VM). ';
     $('d-note').innerHTML = d.diskSource === 'guest'
       ? ram + '<b>Disk</b> đọc trực tiếp trong VM bằng <code>df</code> qua Guest Operations: khớp với hệ điều hành (cập nhật mỗi ~15 phút).'
       : ram + '<b>Disk</b>: "Còn trống" luôn khớp cột Avail của <code>df</code>; "Đã dùng" = dung lượng − còn trống. '
@@ -521,6 +523,7 @@ function renderDetail() {
   const [w0, w1] = TW.win(), pts = (state.series?.points || []).filter((p) => p.ts >= w0 && p.ts <= w1);
   $('n-cpu').textContent = pct(d.cpu);
   $('n-mem').textContent = pct(d.mem);
+  $('t-mem').textContent = d.memSource === 'active' ? 'RAM hoạt động' : 'RAM';
   $('n-net').textContent = `↓${rate(d.netRx)} ↑${rate(d.netTx)}`;
   $('n-io').textContent = `R ${rate(d.diskRead)} W ${rate(d.diskWrite)}`;
   lineChart($('c-cpu'), pts, [{ k: 'cpu', c: '--cpu', fill: true }], { max: 100, fmt: (v) => v.toFixed(0) + '%', tip: pct });

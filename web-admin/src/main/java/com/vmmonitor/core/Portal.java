@@ -356,7 +356,7 @@ public class Portal {
     if ("vm".equals(Json.str(a.path("kind")))) return visible(store.vms.get(Json.str(a.path("vmId"))), s);
     return s.customers() == null && Scope.in("", Json.str(a.path("site")), s);
   }
-  static final String[] INTERNAL = {"site", "cluster", "host", "datacenter", "vcenter", "folder", "resourcePool", "customerSource", "customerSourceLabel", "notes", "attributes", "tags", "diskSource", "memSource", "cpuMhz", "source"};
+  static final String[] INTERNAL = {"site", "cluster", "host", "datacenter", "vcenter", "folder", "resourcePool", "customerSource", "customerSourceLabel", "notes", "attributes", "tags", "diskSource", "cpuMhz", "source"};
   public ObjectNode strip(ObjectNode v, Scope s) {
     if (s == null || !s.hide() || v == null) return v;
     ObjectNode o = v.deepCopy();

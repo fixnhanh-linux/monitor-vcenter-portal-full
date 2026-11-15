@@ -46,6 +46,7 @@
   .chartbox { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px 6px; }
   .chartbox h4 { margin: 0 0 4px; font-size: 13px; display: flex; gap: 10px; align-items: center; }
   .chartbox h4 small { color: var(--muted); font-weight: 500; }
+  .cnote { font-size: 12px; color: var(--muted); margin: 0 0 6px; line-height: 1.45; }
   .chartbox svg { width: 100%; height: 150px; display: block; }
   .shade { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 15; display: none; }
   .shade.open { display: block; }
@@ -161,8 +162,8 @@ function sparkSvg(pts) {
   const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(((p.ts - t0) / (t1 - t0 || 1)) * 100).toFixed(2)},${(32 - (Math.min(100, p.cpu || 0) / 100) * 30).toFixed(2)}`).join('');
   return `<svg class="spark" viewBox="0 0 100 34" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="var(--cpu)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
 }
-function meter(label, v, base, show = true) {
-  return `<div>${label} <b>${show ? pct(v) : '—'}</b><div class="mini"><i style="width:${show ? Math.min(100, v || 0) : 0}%;background:${lvl(v || 0, base)}"></i></div></div>`;
+function meter(label, v, base, show = true, tip = '') {
+  return `<div${tip ? ` title="${tip}"` : ''}>${label} <b>${show ? pct(v) : '—'}</b><div class="mini"><i style="width:${show ? Math.min(100, v || 0) : 0}%;background:${lvl(v || 0, base)}"></i></div></div>`;
 }
 function card(v) {
   const al = alertsOf(v.id), crit = al.some((a) => a.severity === 'critical');
@@ -171,7 +172,7 @@ function card(v) {
   return `<button class="vm ${crit ? 'crit' : al.length ? 'warn' : ''}" data-id="${esc(v.id)}">
     <div class="t"><span class="n" title="${esc(v.name)}">${esc(v.name)}</span>${al.length ? `<span class="sev ${crit ? 'critical' : 'warning'}">⚠ ${al.length}</span>` : ''}<span class="st ${cls}">${label}</span></div>
     <div class="m"><span>${esc(v.ip || '—')}</span><span>${v.cores || '?'} vCPU · ${bytes(v.memTotal, 0)} RAM</span>${S.me.customers?.length > 1 ? `<span>${esc(v.customer)}</span>` : ''}</div>
-    <div class="meters">${meter('CPU', v.cpu, '--cpu', on)}${meter('RAM', v.mem, '--mem', on)}${meter('Ổ đĩa', v.diskMax, '--disk', !!v.diskTotal)}</div>
+    <div class="meters">${meter('CPU', v.cpu, '--cpu', on)}${v.memSource === 'active' ? meter('RAM h.động', v.mem, '--mem', on, 'Phần RAM máy chủ đang hoạt động do hệ thống ảo hoá đo được — thường thấp hơn mức &quot;đã dùng&quot; hiển thị trong hệ điều hành (lệnh free, htop, Task Manager).') : meter('RAM', v.mem, '--mem', on)}${meter('Ổ đĩa', v.diskMax, '--disk', !!v.diskTotal)}</div>
     ${on ? sparkSvg(v.spark) : `<div class="m">${v.status === 'off' ? 'Máy đang tắt' : 'Không nhận được số liệu'} · cập nhật ${new Date(v.lastSeen).toLocaleString('vi-VN')}</div>`}
   </button>`;
 }
@@ -198,7 +199,7 @@ async function loadDetail() {
       <span>Đã chạy</span><span>${up}</span><span>Cập nhật</span><span>${new Date(d.lastSeen).toLocaleString('vi-VN')}</span></div>
     ${(d.activeAlerts || []).length ? `<div class="chartbox"><h4>Cảnh báo</h4>${d.activeAlerts.map((a) => `<div style="font-size:13px;padding:3px 0"><span class="sev ${a.severity}">${a.severity === 'critical' ? 'Nghiêm trọng' : 'Cảnh báo'}</span> ${esc(a.text)}</div>`).join('')}</div>` : ''}
     ${chart('CPU', m.points, [['cpu', '--cpu']], { max: 100, fmt: pct, now: pct(d.cpu) })}
-    ${chart('RAM', m.points, [['mem', '--mem']], { max: 100, fmt: pct, now: `${pct(d.mem)} · ${bytes(d.memUsed, 1)} / ${bytes(d.memTotal, 0)}` })}
+    ${chart(d.memSource === 'active' ? 'RAM hoạt động' : 'RAM', m.points, [['mem', '--mem']], { max: 100, fmt: pct, now: `${pct(d.mem)} · ${bytes(d.memUsed, 1)} / ${bytes(d.memTotal, 0)}`, note: d.memSource === 'active' ? 'Phần RAM máy chủ đang hoạt động do hệ thống ảo hoá đo được — thường thấp hơn mức &quot;đã dùng&quot; hiển thị trong hệ điều hành (lệnh free, htop, Task Manager).' : '' })}
     ${chart('Network', m.points, [['rx', '--rx', 'vào'], ['tx', '--tx', 'ra']], { fmt: rate, now: `↓ ${rate(d.netRx)} ↑ ${rate(d.netTx)}` })}
     ${chart('Đọc / ghi ổ đĩa', m.points, [['rd', '--rx', 'đọc'], ['wr', '--disk', 'ghi']], { fmt: rate, now: `${rate(d.diskRead)} / ${rate(d.diskWrite)}` })}
     ${(d.mounts || []).length ? `<div class="chartbox"><h4>Ổ đĩa</h4><table class="mt"><tr><th>Phân vùng</th><th>Đã dùng</th><th>Dung lượng</th><th style="width:40%"></th></tr>
@@ -220,7 +221,7 @@ function chart(title, pts, series, opt) {
   const lines = pts.length < 2 ? `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="12" fill="var(--muted)">Đang thu thập dữ liệu…</text>`
     : series.map(([k, c]) => `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.ts).toFixed(1)},${Y(p[k] || 0).toFixed(1)}`).join('')}" fill="none" stroke="var(${c})" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
   const legend = series.length > 1 ? series.map(([, c, n]) => `<small><span style="color:var(${c})">●</span> ${n}</small>`).join(' ') : '';
-  return `<div class="chartbox"><h4>${title} <small>${esc(opt.now || '')}</small> ${legend}</h4><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-tw="1" data-t0="${t0}" data-t1="${t1}" data-x0="${L / W}" data-x1="${(W - R) / W}" title="Kéo chuột để phóng to · nhấp đúp để thu nhỏ">${grid}${lines}</svg></div>`;
+  return `<div class="chartbox"><h4>${title} <small>${esc(opt.now || '')}</small> ${legend}</h4>${opt.note ? `<div class="cnote">ℹ ${opt.note}</div>` : ''}<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-tw="1" data-t0="${t0}" data-t1="${t1}" data-x0="${L / W}" data-x1="${(W - R) / W}" title="Kéo chuột để phóng to · nhấp đúp để thu nhỏ">${grid}${lines}</svg></div>`;
 }
 
 // ---------- sự kiện ----------
