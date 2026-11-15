@@ -123,7 +123,13 @@ cd vm-monitor-linux
 sudo bash install.sh
 ```
 
-Script sẽ: tạo user `vmmonitor`, chép jar vào `/opt/vm-monitor/`, tạo thư mục dữ liệu `/var/lib/vm-monitor/`, tạo file cấu hình `/etc/vm-monitor/admin.env` và `/etc/vm-monitor/khach.env`, cài 2 service `vm-monitor-admin` (cổng 3000) và `vm-monitor-khach` (cổng 8080), bật tự chạy khi khởi động máy và tự chạy lại khi lỗi.
+Cổng mặc định 3000 (admin) / 8080 (khách). **Cổng đã bị chương trình khác dùng (vd Grafana chiếm 3000) thì script tự lấy cổng trống kế tiếp** và in ra cổng đã dùng. Muốn tự chọn cổng:
+
+```bash
+sudo ADMIN_PORT=3001 KHACH_PORT=8081 bash install.sh
+```
+
+Script sẽ: tạo user `vmmonitor`, chép jar vào `/opt/vm-monitor/`, tạo thư mục dữ liệu `/var/lib/vm-monitor/`, tạo file cấu hình `/etc/vm-monitor/admin.env` và `/etc/vm-monitor/khach.env`, cài 2 service `vm-monitor-admin` và `vm-monitor-khach`, bật tự chạy khi khởi động máy và tự chạy lại khi lỗi.
 
 **5. Kiểm tra service đang chạy**
 
@@ -139,7 +145,9 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/login.html
 curl -s http://localhost:8080/healthz
 ```
 
-Ra `200` và `{"ok":true,"admin":"ok"}` là được.
+Ra `200` và `{"ok":true,"admin":"ok"}` là được (đổi 3000 / 8080 nếu script báo dùng cổng khác).
+
+Web admin không chạy, log báo `Port 3000 was already in use` → chạy lại `sudo ADMIN_PORT=3001 bash install.sh`.
 
 **6. Mở tường lửa (nếu đang bật)**
 

@@ -10,6 +10,9 @@ Cài:
   cd vm-monitor-linux
   sudo bash install.sh
 
+Cổng mặc định 3000 / 8080; cổng bận (vd Grafana chiếm 3000) thì tự lấy cổng trống kế tiếp.
+Tự chọn cổng: sudo ADMIN_PORT=3001 KHACH_PORT=8081 bash install.sh
+
 Sau khi cài:
   Web admin : http://<ip-server>:3000   (lần đầu vào sẽ tạo tài khoản admin)
   Web khách : http://<ip-server>:8080

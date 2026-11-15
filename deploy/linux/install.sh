@@ -3,6 +3,7 @@
 #
 #   sudo ./install.sh                 # dùng 2 file jar cạnh script, hoặc ../../web-admin/target, ../../web-khach/target
 #   sudo ./install.sh /đường/dẫn/jar   # thư mục chứa vm-monitor-admin.jar + vm-monitor-khach.jar
+#   sudo ADMIN_PORT=3001 KHACH_PORT=8081 ./install.sh   # chọn cổng (mặc định 3000 / 8080, cổng bận thì tự lấy cổng trống kế tiếp)
 #
 # Sau khi cài:
 #   web admin : http://<server>:3000   (lần đầu tạo tài khoản admin ngay trên trang đăng nhập)
@@ -45,28 +46,64 @@ install -d -o root -g vmmonitor -m 750 /etc/vm-monitor
 install -m 644 "$ADMIN_JAR" /opt/vm-monitor/vm-monitor-admin.jar
 install -m 644 "$KHACH_JAR" /opt/vm-monitor/vm-monitor-khach.jar
 
+# ---- cổng: mặc định 3000 (admin) / 8080 (khách); đặt ADMIN_PORT=… KHACH_PORT=… để chọn; cổng bận thì tự lấy cổng trống kế tiếp
+systemctl stop vm-monitor-khach.service vm-monitor-admin.service 2>/dev/null || true
+cur_admin="$(sed -n "s/^ADMIN_ARGS=.*--port[ =]\([0-9]*\).*/\1/p" /etc/vm-monitor/admin.env 2>/dev/null | tail -1 || true)"
+cur_khach="$(sed -n "s/^PORT=\([0-9]*\).*/\1/p" /etc/vm-monitor/khach.env 2>/dev/null | tail -1 || true)"
+busy() { ss -ltnH 2>/dev/null | awk '{print $4}' | grep -Eq "[:.]$1$"; }
+pick() {  # pick <tên> <cổng người dùng chọn> <mặc định>
+  local p="${2:-$3}"
+  if busy "$p"; then
+    if [ -n "$2" ]; then echo "Cổng $p ($1) đang bị chương trình khác dùng:" >&2; ss -ltnp 2>/dev/null | grep -E "[:.]$p " >&2; exit 1; fi
+    echo "Cổng $p ($1) đang bị chương trình khác dùng:" >&2; ss -ltnp 2>/dev/null | grep -E "[:.]$p " >&2 || true
+    while busy "$p"; do p=$((p + 1)); done
+    echo "  -> dùng cổng $p cho $1" >&2
+  fi
+  echo "$p"
+}
+APORT="$(pick "web admin" "${ADMIN_PORT:-}" "${cur_admin:-3000}")"
+KPORT="$(pick "web khách" "${KHACH_PORT:-}" "${cur_khach:-8080}")"
+[ "$APORT" != "$KPORT" ] || { echo "ADMIN_PORT và KHACH_PORT trùng nhau"; exit 1; }
+
+# set_kv <file> <KEY> <VALUE>: thay dòng KEY=…, chưa có thì thêm
+set_kv() { if grep -q "^$2=" "$1"; then sed -i "s#^$2=.*#$2=$3#" "$1"; else echo "$2=$3" >> "$1"; fi; }
 if [ ! -f /etc/vm-monitor/khach.env ]; then
   cat > /etc/vm-monitor/khach.env <<'EOF'
-# Cổng khách hàng
+# Cổng khách hàng (sửa xong: systemctl restart vm-monitor-khach)
 ADMIN_URL=http://127.0.0.1:3000
 PORT=8080
 BRAND_NAME=Cổng khách hàng
 # 1 khi đặt sau nginx / Caddy có HTTPS
 TRUST_PROXY=0
 EOF
-  chmod 640 /etc/vm-monitor/khach.env; chgrp vmmonitor /etc/vm-monitor/khach.env
 fi
-[ -f /etc/vm-monitor/admin.env ] || { echo '# Tham số thêm cho web admin, vd: ADMIN_ARGS=--port 3000' > /etc/vm-monitor/admin.env; chmod 640 /etc/vm-monitor/admin.env; chgrp vmmonitor /etc/vm-monitor/admin.env; }
+[ -f /etc/vm-monitor/admin.env ] || echo "# Tham số thêm cho web admin (sửa xong: systemctl restart vm-monitor-admin)" > /etc/vm-monitor/admin.env
+set_kv /etc/vm-monitor/admin.env ADMIN_ARGS "--port $APORT"
+set_kv /etc/vm-monitor/khach.env ADMIN_URL "http://127.0.0.1:$APORT"
+set_kv /etc/vm-monitor/khach.env PORT "$KPORT"
+chmod 640 /etc/vm-monitor/*.env; chgrp vmmonitor /etc/vm-monitor/*.env
 
 install -m 644 "$HERE/vm-monitor-admin.service" /etc/systemd/system/vm-monitor-admin.service
 install -m 644 "$HERE/vm-monitor-khach.service" /etc/systemd/system/vm-monitor-khach.service
 systemctl daemon-reload
 systemctl enable --now vm-monitor-admin.service
-sleep 5
+echo -n "Đang khởi động web admin (cổng $APORT) "
+ok=0; for i in $(seq 1 45); do
+  if curl -sf -o /dev/null "http://127.0.0.1:$APORT/login.html" 2>/dev/null; then ok=1; break; fi
+  echo -n "."; sleep 2
+done; echo
 systemctl enable --now vm-monitor-khach.service
-
+for i in $(seq 1 30); do curl -sf -o /dev/null "http://127.0.0.1:$KPORT/healthz" 2>/dev/null && break; sleep 2; done
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
-systemctl --no-pager --lines=0 status vm-monitor-admin.service vm-monitor-khach.service || true
-echo
-echo "Xong. Web admin: http://$(hostname -I 2>/dev/null | awk '{print $1}'):3000  ·  Web khách: cổng 8080"
+if [ "$ok" = 1 ]; then
+  echo "Xong."
+  echo "  Web admin : http://${IP:-<server>}:$APORT   (lần đầu vào tạo tài khoản admin)"
+  echo "  Web khách : http://${IP:-<server>}:$KPORT"
+  echo "  Kiểm tra  : $(curl -s http://127.0.0.1:$KPORT/healthz 2>/dev/null || echo "chưa trả lời - xem journalctl -u vm-monitor-khach")"
+else
+  echo "Web admin CHƯA chạy được. Lỗi gần nhất:"
+  journalctl -u vm-monitor-admin -n 60 --no-pager 2>/dev/null | grep -Ev "^s*at |^s*..." | tail -15
+fi
 echo "Log: journalctl -u vm-monitor-admin -f   ·   /var/lib/vm-monitor/data/portal.log"
+echo "Đổi cổng: ADMIN_PORT=3001 KHACH_PORT=8081 bash install.sh"
