@@ -1,0 +1,23 @@
+[Unit]
+Description=VM Monitor - web khách hàng (cổng khách, chuyển tiếp API khách sang web admin)
+After=network-online.target vm-monitor-admin.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vmmonitor
+Group=vmmonitor
+Environment=TZ=Asia/Ho_Chi_Minh
+# ADMIN_URL, PORT, BRAND_NAME, TRUST_PROXY
+EnvironmentFile=/etc/vm-monitor/khach.env
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=40 -jar /opt/vm-monitor/vm-monitor-khach.jar
+Restart=always
+RestartSec=5
+SuccessExitStatus=143
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

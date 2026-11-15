@@ -89,7 +89,7 @@ def architecture():
     b.append('<text class="ttl" x="450" y="34" text-anchor="middle">Kiến trúc tổng thể</text>')
     b.append(box(110, 60, 260, 62, "g", "Admin / nhân viên", "Mạng nội bộ / VPN"))
     b.append(box(530, 60, 260, 62, "g", "Khách hàng", "Internet, HTTPS"))
-    b.append(zone(60, 150, 780, 170, "Server trung tâm — Docker Compose", "br"))
+    b.append(zone(60, 150, 780, 170, "Server trung tâm — service (systemd / Windows)", "br"))
     b.append(box(110, 196, 260, 84, "p", "web-admin  :3000", "Dashboard · API · cảnh báo"))
     b.append(box(530, 196, 260, 84, "p", "web-khach  :8080", "Chỉ API của khách"))
     b.append(flow("M240 122 V192", "p", 1.6))

@@ -33,13 +33,14 @@ Cổng khách chỉ chuyển tiếp các API dành cho khách, chỉ cho tài kh
 | [`web-admin/`](web-admin/README.md) | Web quản trị + nhân viên, REST API, nhận số liệu từ agent | Java 21, Spring Boot 3 |
 | [`web-khach/`](web-khach/README.md) | Cổng khách hàng, chỉ chuyển tiếp API khách được phép sang web-admin | Java 21, Spring Boot 3 |
 | [`agent-docker/`](agent-docker/README.md) | Agent giám sát tại site (collector vCenter) | Python 3.12, pyVmomi, Docker |
-| `deploy/` | Docker Compose chạy web-admin + web-khach (thật và demo) | Docker Compose |
+| `deploy/` | Cài web-admin + web-khach chạy service (`linux/` systemd, `windows/`), script build jar, Docker Compose demo | systemd, PowerShell |
 | [`grafana/`](grafana/stack/README.md) | Prometheus + Grafana dựng sẵn, 5 dashboard (tổng quan, VM, khách hàng, host, datastore) | Docker Compose |
 | `tools/` | Tạo chứng chỉ HTTPS tự ký | PowerShell |
 
 ## Yêu cầu
 
-- **Docker** (Docker Desktop trên Windows / macOS, Docker Engine trên Linux) — không cần cài Java, Maven hay Python: mọi thứ build trong Docker.
+- **Server trung tâm** (web-admin + web-khach chạy service): Linux có systemd hoặc Windows Server, **Java 21**.
+- **Mỗi site** (agent): **Docker**. Chạy thử demo trên máy cá nhân cũng chỉ cần Docker.
 - Thật: vCenter 6.7+ và một tài khoản vCenter **Read-only** (thêm quyền *Guest Operations* nếu muốn đọc `df` trong VM Linux).
 
 ## 1. Chạy thử (dữ liệu giả, 2 phút)
@@ -58,18 +59,39 @@ Dừng: `docker compose -f docker-compose.demo.yml down`. Chạy lại từ đ�
 
 ## 2. Triển khai thật
 
-### Bước 1 — Web admin + web khách trên một server
+### Bước 1 — Web admin + web khách chạy **service** trên một server (không dùng Docker)
+
+Tải `vm-monitor-linux.zip` ở trang [Releases](https://github.com/fixnhanh-linux/monitor-vcenter-portal-full/releases/latest) (hoặc tự build: `bash deploy/build.sh` rồi dùng thư mục `deploy/linux/`).
+
+**Linux (systemd)** — Ubuntu 22.04+ / Debian 12 / RHEL 9:
 
 ```bash
-cd deploy
-mkdir portal-data                 # cấu hình + dữ liệu sẽ nằm ở đây (sao lưu thư mục này)
-docker compose up -d --build
+sudo apt install -y openjdk-21-jre-headless unzip      # RHEL: sudo dnf install -y java-21-openjdk-headless unzip
+unzip vm-monitor-linux.zip && cd vm-monitor-linux
+sudo bash install.sh
 ```
 
+- Tạo 2 service `vm-monitor-admin` (cổng 3000) và `vm-monitor-khach` (cổng 8080), tự chạy khi khởi động máy, tự chạy lại khi lỗi.
+- Jar: `/opt/vm-monitor/` · dữ liệu: `/var/lib/vm-monitor/` (`config.json`, `data/`, `backups/`) · cấu hình: `/etc/vm-monitor/admin.env`, `/etc/vm-monitor/khach.env`.
+- Quản lý: `systemctl status|restart vm-monitor-admin vm-monitor-khach`, log: `journalctl -u vm-monitor-admin -f`.
+- Nâng cấp: giải nén bản mới, chạy lại `sudo bash install.sh` (giữ dữ liệu). Gỡ: `sudo bash uninstall.sh`.
+
+**Windows Server** — cài [Java 21 (Temurin)](https://adoptium.net), PowerShell *Run as Administrator*:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -JarDir <thư mục chứa 2 file jar>
+```
+
+Tạo 2 tác vụ nền chạy bằng SYSTEM lúc khởi động (`VM Monitor - Web admin`, `VM Monitor - Web khach`), dữ liệu ở `C:\VMMonitor`. Gỡ: `deploy\windows\uninstall.ps1`.
+
+Sau khi cài:
+
 - Web admin: `http://<server>:3000` → tạo tài khoản admin. Nên để cổng 3000 **chỉ trong mạng nội bộ / VPN** (agent các site gọi vào cổng này).
-- Web khách: `http://<server>:8080` — đặt sau reverse proxy có HTTPS (nginx / Caddy) rồi mới mở ra internet, đặt `TRUST_PROXY: "1"`.
-- Đổi tên cổng khách: biến `BRAND_NAME` trong `deploy/docker-compose.yml`.
+- Web khách: `http://<server>:8080` — đặt sau reverse proxy có HTTPS (nginx / Caddy) rồi mới mở ra internet, đặt `TRUST_PROXY=1` trong `khach.env`.
+- Đổi tên cổng khách: `BRAND_NAME` trong `khach.env`, rồi restart `vm-monitor-khach`.
 - HTTPS cho web admin: `tools/make_cert.ps1` hoặc chứng chỉ thật → *Cài đặt → Người dùng & bảo mật → Bảo mật*.
+
+> Muốn chạy web-admin + web-khach bằng Docker thay vì service: `cd deploy && mkdir portal-data && docker compose up -d --build` (tuỳ chọn).
 
 ### Bước 2 — Agent tại mỗi site
 
@@ -138,4 +160,4 @@ docker build -t vm-monitor-agent agent-docker
 
 ## Sao lưu & khôi phục
 
-Toàn bộ trạng thái nằm trong `deploy/portal-data/` (`config.json` + `data/`). Web admin tự sao lưu hằng ngày vào `portal-data/backups/` (bật / chỉnh ở *Cài đặt → Vận hành*). Bản sao lưu chứa khoá giải mã mật khẩu vCenter — cất giữ cẩn thận.
+Toàn bộ trạng thái nằm trong `/var/lib/vm-monitor/` (Windows: `C:VMMonitor`, Docker: `deploy/portal-data/`) (`config.json` + `data/`). Web admin tự sao lưu hằng ngày vào `backups/` trong thư mục đó (bật / chỉnh ở *Cài đặt → Vận hành*). Bản sao lưu chứa khoá giải mã mật khẩu vCenter — cất giữ cẩn thận.

@@ -34,10 +34,9 @@ web-khach/
 
 ## Build & chạy
 
-```bash
-docker build -t vm-monitor-khach web-khach
-docker run -d --name vm-monitor-khach -p 8080:8080 -e ADMIN_URL=http://10.0.0.5:3000 -e BRAND_NAME="Cổng khách hàng ABC" --restart unless-stopped vm-monitor-khach
-```
+Build jar: `bash deploy/build.sh` (ra `deploy/dist/vm-monitor-khach.jar`). Cài chạy **service** cùng web-admin: `deploy/linux/install.sh` (systemd, biến đặt trong `/etc/vm-monitor/khach.env`) hoặc `deploy/windows/install.ps1` (`C:VMMonitorkhach.env`).
+
+Chạy tay: `ADMIN_URL=http://10.0.0.5:3000 BRAND_NAME="Cổng khách hàng ABC" java -jar vm-monitor-khach.jar`
 
 | Biến | Mặc định | Ý nghĩa |
 |---|---|---|
